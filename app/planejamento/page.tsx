@@ -77,6 +77,7 @@ export default function PlanejamentoPage() {
   const [dataSelecionada, setDataSelecionada] = useState(formatDateToInput(new Date()))
   const [cenarioSelecionadoId, setCenarioSelecionadoId] = useState("")
   const [erro, setErro] = useState("")
+
   async function gerarEscala() {
     if (!cenarioSelecionadoId || !dataSelecionada) {
       alert("Selecione um cenário e uma data")
@@ -100,6 +101,7 @@ export default function PlanejamentoPage() {
 
     alert("Escala gerada com sucesso!")
   }
+
   useEffect(() => {
     async function carregarDados() {
       try {
@@ -235,13 +237,11 @@ export default function PlanejamentoPage() {
       ) : null}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-3xl font-bold text-blue-700">Selecionar cenário</h2>
-<button
-  onClick={gerarEscala}
-  className="mt-4 rounded-xl bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
->
-  Gerar escala do dia
-</button>
+        <h2 className="text-3xl font-bold text-blue-700">Gerar sua escala</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Escolha a data e o cenário para gerar a escala automaticamente.
+        </p>
+
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -271,6 +271,15 @@ export default function PlanejamentoPage() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={gerarEscala}
+            className="rounded-xl bg-blue-600 px-8 py-3 text-white font-semibold transition hover:bg-blue-700"
+          >
+            Gerar escala
+          </button>
         </div>
       </section>
 
