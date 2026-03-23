@@ -15,8 +15,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className="min-h-screen bg-[#F8FAFC] text-[#1F2937]">
         <div className="flex min-h-screen">
-
-          <aside className="w-64 bg-[#1E5AA8] text-white shadow-lg">
+          <aside className="flex w-64 flex-col bg-[#1E5AA8] text-white shadow-lg">
             <div className="border-b border-white/20 px-6 py-6">
               <h1 className="text-3xl font-extrabold tracking-tight">
                 EscalaPro
@@ -27,7 +26,6 @@ export default function RootLayout({
             </div>
 
             <nav className="flex flex-col gap-2 p-4">
-
               <Link
                 href="/"
                 className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-white/15"
@@ -84,6 +82,12 @@ export default function RootLayout({
                 Ausências
               </Link>
 
+              <Link
+                href="/ajuda"
+                className="rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-white/15"
+              >
+                Ajuda
+              </Link>
             </nav>
 
             <div className="mt-auto p-4">
@@ -94,13 +98,11 @@ export default function RootLayout({
                 </p>
               </div>
             </div>
-
           </aside>
 
           <main className="flex-1 bg-[#F8FAFC] p-8">
             {children}
           </main>
-
         </div>
       </body>
     </html>
