@@ -15,7 +15,8 @@ type Fixo = {
 
 type Ausencia = {
   id: string
-  data: string
+  data_inicio: string
+  data_fim: string
   motivo: string
   fixo_id?: string | null
   fixos?: {
@@ -41,6 +42,16 @@ function formatDateToBR(dateString: string) {
   return `${day}/${month}/${year}`
 }
 
+function formatPeriodo(dataInicio: string, dataFim: string) {
+  if (!dataInicio || !dataFim) return "—"
+
+  if (dataInicio === dataFim) {
+    return formatDateToBR(dataInicio)
+  }
+
+  return `${formatDateToBR(dataInicio)} até ${formatDateToBR(dataFim)}`
+}
+
 export default function AusenciasPage() {
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
@@ -50,7 +61,8 @@ export default function AusenciasPage() {
   const [fixos, setFixos] = useState<Fixo[]>([])
   const [ausencias, setAusencias] = useState<Ausencia[]>([])
 
-  const [data, setData] = useState(formatDateToInput(new Date()))
+  const [dataInicio, setDataInicio] = useState(formatDateToInput(new Date()))
+  const [dataFim, setDataFim] = useState(formatDateToInput(new Date()))
   const [fixoId, setFixoId] = useState("")
   const [motivo, setMotivo] = useState("Folga")
 
@@ -69,7 +81,8 @@ export default function AusenciasPage() {
           .from("ausencias_fixos")
           .select(`
             id,
-            data,
+            data_inicio,
+            data_fim,
             motivo,
             fixo_id,
             fixos (
@@ -80,7 +93,7 @@ export default function AusenciasPage() {
               )
             )
           `)
-          .order("data", { ascending: false }),
+          .order("data_inicio", { ascending: false }),
       ])
 
       if (fixosResponse.error) throw fixosResponse.error
@@ -113,14 +126,20 @@ export default function AusenciasPage() {
       setErro("")
       setSucesso("")
 
-      if (!data || !fixoId || !motivo) {
-        setErro("Preencha data, funcionário e motivo.")
+      if (!dataInicio || !dataFim || !fixoId || !motivo) {
+        setErro("Preencha data inicial, data final, funcionário e motivo.")
+        return
+      }
+
+      if (dataFim < dataInicio) {
+        setErro("A data final não pode ser menor que a data inicial.")
         return
       }
 
       const { error } = await supabase.from("ausencias_fixos").insert([
         {
-          data,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
           fixo_id: fixoId,
           motivo,
         },
@@ -196,15 +215,27 @@ export default function AusenciasPage() {
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-3xl font-bold text-blue-700">Cadastrar ausência</h2>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
-              Data
+              Data inicial
             </label>
             <input
               type="date"
-              value={data}
-              onChange={(e) => setData(e.target.value)}
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Data final
+            </label>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
             />
           </div>
@@ -269,7 +300,13 @@ export default function AusenciasPage() {
               <thead>
                 <tr className="bg-slate-50">
                   <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
-                    Data
+                    Período
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                    Data inicial
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                    Data final
                   </th>
                   <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
                     Funcionário
@@ -290,7 +327,13 @@ export default function AusenciasPage() {
                 {ausencias.map((ausencia) => (
                   <tr key={ausencia.id} className="hover:bg-slate-50">
                     <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-800">
-                      {formatDateToBR(ausencia.data)}
+                      {formatPeriodo(ausencia.data_inicio, ausencia.data_fim)}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-800">
+                      {formatDateToBR(ausencia.data_inicio)}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-800">
+                      {formatDateToBR(ausencia.data_fim)}
                     </td>
                     <td className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">
                       {ausencia.fixos?.nome || "—"}

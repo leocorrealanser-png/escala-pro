@@ -28,10 +28,14 @@ export default function FreelancersPage() {
   const [freelancers, setFreelancers] = useState<Freelancer[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
 
   const [nome, setNome] = useState("")
   const [telefone, setTelefone] = useState("")
   const [cargosSelecionados, setCargosSelecionados] = useState<string[]>([])
+
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [cargosEditando, setCargosEditando] = useState<string[]>([])
 
   useEffect(() => {
     carregarDados()
@@ -89,6 +93,14 @@ export default function FreelancersPage() {
     )
   }
 
+  function alternarCargoEditando(cargoId: string) {
+    setCargosEditando((prev) =>
+      prev.includes(cargoId)
+        ? prev.filter((id) => id !== cargoId)
+        : [...prev, cargoId]
+    )
+  }
+
   async function adicionarFreelancer() {
     if (!nome.trim()) {
       alert("Informe o nome")
@@ -99,6 +111,8 @@ export default function FreelancersPage() {
       alert("Selecione pelo menos um cargo")
       return
     }
+
+    setSalvando(true)
 
     const { data: freelancerInserido, error: freelancerError } = await supabase
       .from("freelancers")
@@ -115,6 +129,7 @@ export default function FreelancersPage() {
     if (freelancerError || !freelancerInserido) {
       console.error(freelancerError)
       alert("Erro ao adicionar freelancer")
+      setSalvando(false)
       return
     }
 
@@ -130,6 +145,7 @@ export default function FreelancersPage() {
     if (cargosRelacaoError) {
       console.error(cargosRelacaoError)
       alert("Freelancer criado, mas houve erro ao salvar os cargos")
+      setSalvando(false)
       return
     }
 
@@ -137,6 +153,7 @@ export default function FreelancersPage() {
     setTelefone("")
     setCargosSelecionados([])
     await carregarDados()
+    setSalvando(false)
   }
 
   async function removerFreelancer(id: string) {
@@ -156,6 +173,62 @@ export default function FreelancersPage() {
     }
 
     await carregarDados()
+  }
+
+  function iniciarEdicao(freelancer: Freelancer) {
+    setEditandoId(freelancer.id)
+
+    const cargosAtuais =
+      freelancer.freelancer_cargos?.map((rel) => rel.cargo_id) || []
+
+    setCargosEditando(cargosAtuais)
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null)
+    setCargosEditando([])
+  }
+
+  async function salvarEdicao(freelancerId: string) {
+    if (cargosEditando.length === 0) {
+      alert("Selecione pelo menos um cargo")
+      return
+    }
+
+    setSalvando(true)
+
+    const { error: removerError } = await supabase
+      .from("freelancer_cargos")
+      .delete()
+      .eq("freelancer_id", freelancerId)
+
+    if (removerError) {
+      console.error(removerError)
+      alert("Erro ao atualizar os cargos do freelancer")
+      setSalvando(false)
+      return
+    }
+
+    const novasRelacoes = cargosEditando.map((cargoId) => ({
+      freelancer_id: freelancerId,
+      cargo_id: cargoId,
+    }))
+
+    const { error: inserirError } = await supabase
+      .from("freelancer_cargos")
+      .insert(novasRelacoes)
+
+    if (inserirError) {
+      console.error(inserirError)
+      alert("Erro ao salvar os novos cargos")
+      setSalvando(false)
+      return
+    }
+
+    setEditandoId(null)
+    setCargosEditando([])
+    await carregarDados()
+    setSalvando(false)
   }
 
   return (
@@ -222,9 +295,10 @@ export default function FreelancersPage() {
 
         <button
           onClick={adicionarFreelancer}
-          className="mt-6 rounded-xl bg-[#1E5AA8] px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+          disabled={salvando}
+          className="mt-6 rounded-xl bg-[#1E5AA8] px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Adicionar freelancer
+          {salvando ? "Salvando..." : "Adicionar freelancer"}
         </button>
       </section>
 
@@ -246,29 +320,101 @@ export default function FreelancersPage() {
                   .filter(Boolean)
                   .join(", ") || "Sem cargo"
 
+              const editando = editandoId === freelancer.id
+
               return (
                 <div
                   key={freelancer.id}
-                  className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4"
                 >
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {freelancer.nome}
-                    </p>
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {freelancer.nome}
+                      </p>
 
-                    <p className="text-sm text-gray-500">
-                      {freelancer.telefone || "Sem telefone"}
-                    </p>
+                      <p className="text-sm text-gray-500">
+                        {freelancer.telefone || "Sem telefone"}
+                      </p>
 
-                    <p className="text-sm text-gray-600">{nomesCargos}</p>
+                      {!editando && (
+                        <p className="mt-1 text-sm text-gray-600">
+                          {nomesCargos}
+                        </p>
+                      )}
+                    </div>
+
+                    {!editando && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => iniciarEdicao(freelancer)}
+                          className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          onClick={() => removerFreelancer(freelancer.id)}
+                          className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <button
-                    onClick={() => removerFreelancer(freelancer.id)}
-                    className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
-                  >
-                    Remover
-                  </button>
+                  {editando && (
+                    <div className="mt-4">
+                      <p className="mb-3 text-sm font-semibold text-gray-700">
+                        Alterar cargos do freelancer
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                        {cargos.map((cargo) => {
+                          const selecionado = cargosEditando.includes(cargo.id)
+
+                          return (
+                            <label
+                              key={cargo.id}
+                              className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${
+                                selecionado
+                                  ? "border-green-500 bg-green-50"
+                                  : "border-gray-200 bg-white hover:bg-gray-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selecionado}
+                                onChange={() => alternarCargoEditando(cargo.id)}
+                                className="h-4 w-4"
+                              />
+                              <span className="font-medium text-gray-900">
+                                {cargo.nome}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        <button
+                          onClick={() => salvarEdicao(freelancer.id)}
+                          disabled={salvando}
+                          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {salvando ? "Salvando..." : "Salvar"}
+                        </button>
+
+                        <button
+                          onClick={cancelarEdicao}
+                          disabled={salvando}
+                          className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}

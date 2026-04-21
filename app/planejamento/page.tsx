@@ -41,7 +41,8 @@ type PessoaFixa = {
 type Ausencia = {
   id: string
   fixo_id?: string | null
-  data: string
+  data_inicio: string
+  data_fim: string
 }
 
 function formatCurrency(value: number | null | undefined) {
@@ -129,7 +130,7 @@ export default function PlanejamentoPage() {
 
           supabase
             .from("ausencias_fixos")
-            .select("id, fixo_id, data"),
+            .select("id, fixo_id, data_inicio, data_fim"),
         ])
 
         if (cenariosResponse.error) throw cenariosResponse.error
@@ -166,7 +167,12 @@ export default function PlanejamentoPage() {
   }, [cenarios, cenarioSelecionadoId])
 
   const ausenciasDoDia = useMemo(() => {
-    return ausencias.filter((ausencia) => ausencia.data === dataSelecionada)
+    return ausencias.filter((ausencia) => {
+      return (
+        ausencia.data_inicio <= dataSelecionada &&
+        ausencia.data_fim >= dataSelecionada
+      )
+    })
   }, [ausencias, dataSelecionada])
 
   const pessoasFixasDisponiveis = useMemo(() => {

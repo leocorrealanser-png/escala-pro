@@ -49,7 +49,8 @@ type PessoaFixa = {
 type Ausencia = {
   id: string
   fixo_id?: string | null
-  data: string
+  data_inicio: string
+  data_fim: string
 }
 
 type FreelancerCargo = {
@@ -99,6 +100,35 @@ function formatDateToBR(dateString: string) {
   if (!dateString) return "—"
   const [year, month, day] = dateString.split("-")
   return `${day}/${month}/${year}`
+}
+
+function formatDateWithWeekday(dateString: string) {
+  if (!dateString) return "—"
+
+  const [year, month, day] = dateString.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+
+  const texto = date.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function formatWeekdayOnly(dateString: string) {
+  if (!dateString) return "—"
+
+  const [year, month, day] = dateString.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+
+  const texto = date.toLocaleDateString("pt-BR", {
+    weekday: "long",
+  })
+
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 function formatCurrency(value: number | null | undefined) {
@@ -176,7 +206,7 @@ export default function EscalasPage() {
 
         supabase
           .from("ausencias_fixos")
-          .select("id, fixo_id, data"),
+          .select("id, fixo_id, data_inicio, data_fim"),
 
         supabase
           .from("freelancers")
@@ -237,7 +267,13 @@ export default function EscalasPage() {
       setEscalaFreelancers((escalaFreelancersResponse.data || []) as unknown as EscalaFreelancer[])
 
       if (escalasData.length > 0) {
-        setEscalaSelecionadaId((atual) => atual || escalasData[0].id)
+        setEscalaSelecionadaId((atual) => {
+          const escalaAindaExiste = escalasData.some((item) => item.id === atual)
+          if (escalaAindaExiste) return atual
+          return escalasData[0].id
+        })
+      } else {
+        setEscalaSelecionadaId("")
       }
     } catch (error: any) {
       console.error(error)
@@ -321,13 +357,20 @@ export default function EscalasPage() {
       return
     }
 
-    const { error } = await supabase.from("escala_freelancers").insert([
-      {
-        escala_id: escalaId,
-        freelancer_id: freelancerId,
-        cargo_id: cargoId,
-      },
-    ])
+    const freelancerCompleto =
+      freelancers.find((item) => item.id === freelancerId) || null
+
+    const { data, error } = await supabase
+      .from("escala_freelancers")
+      .insert([
+        {
+          escala_id: escalaId,
+          freelancer_id: freelancerId,
+          cargo_id: cargoId,
+        },
+      ])
+      .select("id, escala_id, freelancer_id, cargo_id")
+      .single()
 
     if (error) {
       console.error(error)
@@ -335,8 +378,23 @@ export default function EscalasPage() {
       return
     }
 
+    const novoItem: EscalaFreelancer = {
+      id: data.id,
+      escala_id: data.escala_id,
+      freelancer_id: data.freelancer_id,
+      cargo_id: data.cargo_id,
+      freelancers: freelancerCompleto
+        ? {
+            id: freelancerCompleto.id,
+            nome: freelancerCompleto.nome,
+            telefone: freelancerCompleto.telefone,
+            freelancer_cargos: freelancerCompleto.freelancer_cargos,
+          }
+        : null,
+    }
+
+    setEscalaFreelancers((prev) => [...prev, novoItem])
     setSucesso("Freelancer adicionado à escala com sucesso.")
-    await carregarDados()
   }
 
   async function removerFreelancerDaEscala(id: string) {
@@ -354,8 +412,8 @@ export default function EscalasPage() {
       return
     }
 
+    setEscalaFreelancers((prev) => prev.filter((item) => item.id !== id))
     setSucesso("Freelancer removido da escala com sucesso.")
-    await carregarDados()
   }
 
   function imprimirRelatorioEscala() {
@@ -378,10 +436,18 @@ export default function EscalasPage() {
 
             h1 {
               color: #1E5AA8;
-              margin-bottom: 6px;
+              margin-bottom: 8px;
+              font-size: 32px;
             }
 
-            p {
+            .data-destaque {
+              margin-bottom: 4px;
+              color: #0f172a;
+              font-size: 28px;
+              font-weight: 700;
+            }
+
+            .subinfo {
               margin-top: 0;
               margin-bottom: 20px;
               color: #475569;
@@ -409,7 +475,8 @@ export default function EscalasPage() {
         </head>
         <body>
           <h1>Relatório da escala</h1>
-          <p>Data: ${formatDateToBR(escalaSelecionada.data)} • Cenário ${escalaSelecionada.cenarios?.numero ?? "—"}</p>
+          <div class="data-destaque">${formatDateWithWeekday(escalaSelecionada.data)}</div>
+          <p class="subinfo">Cenário ${escalaSelecionada.cenarios?.numero ?? "—"}</p>
           ${elemento.innerHTML}
         </body>
       </html>
@@ -429,7 +496,13 @@ export default function EscalasPage() {
 
   const ausenciasDaEscala = useMemo(() => {
     if (!escalaSelecionada) return []
-    return ausencias.filter((ausencia) => ausencia.data === escalaSelecionada.data)
+
+    return ausencias.filter((ausencia) => {
+      return (
+        ausencia.data_inicio <= escalaSelecionada.data &&
+        ausencia.data_fim >= escalaSelecionada.data
+      )
+    })
   }, [ausencias, escalaSelecionada])
 
   const pessoasFixasDisponiveis = useMemo(() => {
@@ -637,6 +710,9 @@ export default function EscalasPage() {
                           <h3 className="mt-1 text-xl font-bold text-slate-900">
                             {formatDateToBR(escala.data)}
                           </h3>
+                          <p className="mt-1 text-sm font-medium text-slate-500">
+                            {formatWeekdayOnly(escala.data)}
+                          </p>
 
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
@@ -707,7 +783,11 @@ export default function EscalasPage() {
               </p>
             ) : (
               <div className="mt-6 space-y-4">
-                <ResumoCard titulo="Data" valor={formatDateToBR(escalaSelecionada.data)} />
+                <ResumoCard
+                  titulo="Data"
+                  valor={formatDateWithWeekday(escalaSelecionada.data)}
+                  valorMenor
+                />
                 <ResumoCard
                   titulo="Cenário"
                   valor={String(escalaSelecionada.cenarios?.numero ?? "—")}
@@ -922,13 +1002,21 @@ export default function EscalasPage() {
       {mostrarRelatorio && escalaSelecionada ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
               <div>
                 <h2 className="text-2xl font-bold text-[#1E5AA8]">Relatório da escala</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Data: {formatDateToBR(escalaSelecionada.data)} • Cenário{" "}
-                  {escalaSelecionada.cenarios?.numero ?? "—"}
-                </p>
+
+                <div className="mt-3">
+                  <p className="text-3xl font-extrabold leading-tight text-slate-900 sm:text-4xl">
+                    {formatDateToBR(escalaSelecionada.data)}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-slate-600 sm:text-xl">
+                    {formatWeekdayOnly(escalaSelecionada.data)}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Cenário {escalaSelecionada.cenarios?.numero ?? "—"}
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1004,14 +1092,22 @@ export default function EscalasPage() {
 function ResumoCard({
   titulo,
   valor,
+  valorMenor = false,
 }: {
   titulo: string
   valor: string
+  valorMenor?: boolean
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <p className="text-sm font-medium text-slate-600">{titulo}</p>
-      <h3 className="mt-1 text-2xl font-bold text-slate-900">{valor}</h3>
+      <h3
+        className={`mt-1 font-bold text-slate-900 ${
+          valorMenor ? "text-lg leading-snug sm:text-xl" : "text-2xl"
+        }`}
+      >
+        {valor}
+      </h3>
     </div>
   )
 }
