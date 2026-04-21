@@ -28,7 +28,8 @@ type Escala = {
 type Ausencia = {
   id: string
   fixo_id?: string | null
-  data: string
+  data_inicio: string
+  data_fim: string
 }
 
 type EscalaFreelancer = {
@@ -80,6 +81,10 @@ function getCenario(
 } | null {
   if (!cenarios) return null
   return Array.isArray(cenarios) ? cenarios[0] ?? null : cenarios
+}
+
+function ausenciaCobreData(ausencia: Ausencia, data: string) {
+  return data >= ausencia.data_inicio && data <= ausencia.data_fim
 }
 
 export default function DashboardPage() {
@@ -183,14 +188,15 @@ export default function DashboardPage() {
 
         supabase
           .from("ausencias_fixos")
-          .select("id, fixo_id, data")
-          .eq("data", hojeISO),
+          .select("id, fixo_id, data_inicio, data_fim")
+          .lte("data_inicio", hojeISO)
+          .gte("data_fim", hojeISO),
 
         supabase
           .from("ausencias_fixos")
-          .select("id, fixo_id, data")
-          .gte("data", hojeISO)
-          .lte("data", fimSemanaISO),
+          .select("id, fixo_id, data_inicio, data_fim")
+          .lte("data_inicio", fimSemanaISO)
+          .gte("data_fim", hojeISO),
 
         supabase
           .from("escala_freelancers")
@@ -270,18 +276,14 @@ export default function DashboardPage() {
 
       if (error) throw error
 
-      const datasUnicas = Array.from(
-        new Set((escalasPeriodo || []).map((escala: any) => escala.data))
-      )
-
       let ausenciasPeriodo: Ausencia[] = []
 
-      if (datasUnicas.length > 0) {
+      if ((escalasPeriodo || []).length > 0) {
         const { data: ausenciasData, error: ausenciasError } = await supabase
           .from("ausencias_fixos")
-          .select("id, fixo_id, data")
-          .gte("data", dataInicio)
-          .lte("data", dataFim)
+          .select("id, fixo_id, data_inicio, data_fim")
+          .lte("data_inicio", dataFim)
+          .gte("data_fim", dataInicio)
 
         if (ausenciasError) throw ausenciasError
 
@@ -296,8 +298,8 @@ export default function DashboardPage() {
 
           const totalPessoas = Number(cenario?.total_pessoas || 0)
 
-          const ausenciasDia = ausenciasPeriodo.filter(
-            (ausencia) => ausencia.data === escala.data
+          const ausenciasDia = ausenciasPeriodo.filter((ausencia) =>
+            ausenciaCobreData(ausencia, escala.data)
           ).length
 
           const fixosDisponiveis = Math.max(fixosAtivos - ausenciasDia, 0)
@@ -475,8 +477,8 @@ export default function DashboardPage() {
       const cenario = getCenario(escala.cenarios)
       const totalPessoas = Number(cenario?.total_pessoas || 0)
 
-      const ausenciasDaEscala = ausenciasSemana.filter(
-        (ausencia) => ausencia.data === escala.data
+      const ausenciasDaEscala = ausenciasSemana.filter((ausencia) =>
+        ausenciaCobreData(ausencia, escala.data)
       ).length
 
       const fixosDisponiveis = Math.max(fixosAtivos - ausenciasDaEscala, 0)
@@ -604,7 +606,10 @@ export default function DashboardPage() {
         ) : null}
 
         {relatorio.length > 0 ? (
-          <div id="relatorio-dashboard-impressao" className="mt-6 overflow-x-auto">
+          <div
+            id="relatorio-dashboard-impressao"
+            className="mt-6 overflow-x-auto"
+          >
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-slate-600">
