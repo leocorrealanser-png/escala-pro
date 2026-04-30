@@ -74,6 +74,8 @@ type EscalaFreelancer = {
   escala_id: string
   freelancer_id: string
   cargo_id?: string | null
+  horario_entrada?: string | null
+  horario_saida?: string | null
   freelancers?: {
     id: string
     nome: string
@@ -94,6 +96,8 @@ type RelatorioItem = {
   nome: string
   tipo: "Fixo" | "Freelancer"
   cargo: string
+  entrada?: string | null
+  saida?: string | null
 }
 
 function formatDateToBR(dateString: string) {
@@ -137,6 +141,11 @@ function formatCurrency(value: number | null | undefined) {
     style: "currency",
     currency: "BRL",
   })
+}
+
+function formatHorario(value?: string | null) {
+  if (!value) return "—"
+  return value.slice(0, 5)
 }
 
 export default function EscalasPage() {
@@ -233,6 +242,8 @@ export default function EscalasPage() {
             escala_id,
             freelancer_id,
             cargo_id,
+            horario_entrada,
+            horario_saida,
             freelancers (
               id,
               nome,
@@ -357,6 +368,12 @@ export default function EscalasPage() {
       return
     }
 
+    const horarioEntrada = window.prompt("Horário de entrada do freelancer (ex: 18:00)")
+    if (!horarioEntrada) return
+
+    const horarioSaida = window.prompt("Horário de saída do freelancer (ex: 23:00)")
+    if (!horarioSaida) return
+
     const freelancerCompleto =
       freelancers.find((item) => item.id === freelancerId) || null
 
@@ -367,9 +384,11 @@ export default function EscalasPage() {
           escala_id: escalaId,
           freelancer_id: freelancerId,
           cargo_id: cargoId,
+          horario_entrada: horarioEntrada,
+          horario_saida: horarioSaida,
         },
       ])
-      .select("id, escala_id, freelancer_id, cargo_id")
+      .select("id, escala_id, freelancer_id, cargo_id, horario_entrada, horario_saida")
       .single()
 
     if (error) {
@@ -383,6 +402,8 @@ export default function EscalasPage() {
       escala_id: data.escala_id,
       freelancer_id: data.freelancer_id,
       cargo_id: data.cargo_id,
+      horario_entrada: data.horario_entrada,
+      horario_saida: data.horario_saida,
       freelancers: freelancerCompleto
         ? {
             id: freelancerCompleto.id,
@@ -394,7 +415,7 @@ export default function EscalasPage() {
     }
 
     setEscalaFreelancers((prev) => [...prev, novoItem])
-    setSucesso("Freelancer adicionado à escala com sucesso.")
+    setSucesso("Freelancer adicionado à escala com horário de entrada e saída.")
   }
 
   async function removerFreelancerDaEscala(id: string) {
@@ -611,6 +632,8 @@ export default function EscalasPage() {
         nome: pessoa.nome || `Fixo ${pessoa.id.slice(0, 8)}`,
         tipo: "Fixo",
         cargo: pessoa.cargos?.nome || "Sem cargo",
+        entrada: null,
+        saida: null,
       })
     }
 
@@ -623,6 +646,8 @@ export default function EscalasPage() {
         nome: item.freelancers?.nome || "Freelancer",
         tipo: "Freelancer",
         cargo: cargoSelecionado?.cargos?.nome || "Sem cargo",
+        entrada: item.horario_entrada,
+        saida: item.horario_saida,
       })
     }
 
@@ -977,6 +1002,9 @@ export default function EscalasPage() {
                                 <p className="text-sm text-slate-500">
                                   {nomesDosCargosDoFreelancer(item.freelancers)}
                                 </p>
+                                <p className="mt-1 text-sm font-medium text-slate-700">
+                                  Entrada: {formatHorario(item.horario_entrada)} | Saída: {formatHorario(item.horario_saida)}
+                                </p>
                               </div>
 
                               <button
@@ -1056,6 +1084,12 @@ export default function EscalasPage() {
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
                             Função designada
                           </th>
+                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                            Entrada
+                          </th>
+                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                            Saída
+                          </th>
                         </tr>
                       </thead>
 
@@ -1073,6 +1107,12 @@ export default function EscalasPage() {
                             </td>
                             <td className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">
                               {item.cargo}
+                            </td>
+                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                              {formatHorario(item.entrada)}
+                            </td>
+                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                              {formatHorario(item.saida)}
                             </td>
                           </tr>
                         ))}
@@ -1105,7 +1145,7 @@ function ResumoCard({
         className={`mt-1 font-bold text-slate-900 ${
           valorMenor ? "text-lg leading-snug sm:text-xl" : "text-2xl"
         }`}
-      >
+      > 
         {valor}
       </h3>
     </div>

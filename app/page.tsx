@@ -290,39 +290,44 @@ export default function DashboardPage() {
         ausenciasPeriodo = (ausenciasData || []) as Ausencia[]
       }
 
-      const resultado: RelatorioItem[] = (escalasPeriodo || []).map(
-        (escala: any) => {
-          const cenario = Array.isArray(escala.cenarios)
-            ? escala.cenarios[0]
-            : escala.cenarios
+      const resultado: RelatorioItem[] = []
 
-          const totalPessoas = Number(cenario?.total_pessoas || 0)
+      for (const escala of escalasPeriodo || []) {
+        const cenario = Array.isArray(escala.cenarios)
+          ? escala.cenarios[0]
+          : escala.cenarios
 
-          const ausenciasDia = ausenciasPeriodo.filter((ausencia) =>
-            ausenciaCobreData(ausencia, escala.data)
-          ).length
+        const totalPessoas = Number(cenario?.total_pessoas || 0)
 
-          const fixosDisponiveis = Math.max(fixosAtivos - ausenciasDia, 0)
+        const ausenciasDia = ausenciasPeriodo.filter((ausencia) =>
+          ausenciaCobreData(ausencia, escala.data)
+        ).length
 
-          const freelancersEscalados = escalaFreelancers.filter(
-            (f) => f.escala_id === escala.id
-          ).length
+        const fixosDisponiveis = Math.max(fixosAtivos - ausenciasDia, 0)
 
-          const freelancersFaltando = Math.max(
-            totalPessoas - fixosDisponiveis - freelancersEscalados,
-            0
-          )
+        const { data: freelancersData, error: freelancersError } = await supabase
+          .from("escala_freelancers")
+          .select("id")
+          .eq("escala_id", escala.id)
 
-          return {
-            id: escala.id,
-            data: escala.data,
-            cenario: cenario?.numero ?? "—",
-            fixosDisponiveis,
-            freelancersEscalados,
-            freelancersFaltando,
-          }
-        }
-      )
+        if (freelancersError) throw freelancersError
+
+        const freelancersEscalados = freelancersData?.length || 0
+
+        const freelancersFaltando = Math.max(
+          totalPessoas - fixosDisponiveis - freelancersEscalados,
+          0
+        )
+
+        resultado.push({
+          id: escala.id,
+          data: escala.data,
+          cenario: cenario?.numero ?? "—",
+          fixosDisponiveis,
+          freelancersEscalados,
+          freelancersFaltando,
+        })
+      }
 
       setRelatorio(resultado)
     } catch (error: any) {
@@ -560,6 +565,7 @@ export default function DashboardPage() {
           </div>
 
           <button
+            type="button"
             onClick={gerarRelatorio}
             className="rounded-xl bg-[#1E5AA8] px-5 py-2.5 font-medium text-white transition hover:opacity-90"
           >
@@ -569,6 +575,7 @@ export default function DashboardPage() {
           {relatorio.length > 0 && (
             <>
               <button
+                type="button"
                 onClick={imprimirRelatorioDashboard}
                 className="rounded-xl bg-emerald-600 px-5 py-2.5 font-medium text-white transition hover:opacity-90"
               >
@@ -576,6 +583,7 @@ export default function DashboardPage() {
               </button>
 
               <button
+                type="button"
                 onClick={excluirRelatorio}
                 className="rounded-xl bg-red-600 px-5 py-2.5 font-medium text-white transition hover:opacity-90"
               >
