@@ -2,6 +2,7 @@
  
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { toPng } from "html-to-image"
  
 type Escala = {
   id: string
@@ -744,6 +745,31 @@ export default function EscalasPage() {
     }, 300)
   }
  
+  async function baixarRelatorioComoImagem() {
+    const elemento = document.getElementById("relatorio-escala-impressao")
+ 
+    if (!elemento) {
+      alert("Relatório não encontrado.")
+      return
+    }
+ 
+    try {
+      const dataUrl = await toPng(elemento, {
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2,
+      })
+ 
+      const link = document.createElement("a")
+      link.download = `relatorio-escala-${escalaSelecionada?.data || "escala"}.png`
+      link.href = dataUrl
+      link.click()
+    } catch (error) {
+      console.error(error)
+      alert("Não foi possível gerar a imagem.")
+    }
+  }
+ 
   const escalaSelecionada = useMemo(() => {
     return escalas.find((escala) => escala.id === escalaSelecionadaId) || null
   }, [escalas, escalaSelecionadaId])
@@ -1293,6 +1319,14 @@ export default function EscalasPage() {
                   className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                 >
                   Exportar / Imprimir
+                </button>
+ 
+                <button
+                  type="button"
+                  onClick={baixarRelatorioComoImagem}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  Baixar imagem
                 </button>
  
                 <button
