@@ -463,6 +463,32 @@ export default function EscalasPage() {
     await carregarDados()
   }
  
+  function cargoAtingiuLimite(escalaId: string, cargoId: string | null) {
+    const escala = escalas.find((item) => item.id === escalaId)
+ 
+    if (!escala) return false
+ 
+    const regraDoCargo = cenariosCargo.find(
+      (item) =>
+        String(item.cenario_id) === String(escala.cenario_id) &&
+        String(item.cargo_id || "") === String(cargoId || "")
+    )
+ 
+    const necessario = Number(regraDoCargo?.quantidade || 0)
+ 
+    if (necessario <= 0) return false
+ 
+    const fixosSelecionados = escalaFixos.filter(
+      (item) => item.escala_id === escalaId && item.cargo_id === cargoId
+    ).length
+ 
+    const freelancersSelecionados = escalaFreelancers.filter(
+      (item) => item.escala_id === escalaId && item.cargo_id === cargoId
+    ).length
+ 
+    return fixosSelecionados + freelancersSelecionados >= necessario
+  }
+ 
   async function adicionarFixoNaEscala(
     escalaId: string,
     fixoId: string,
@@ -474,6 +500,11 @@ export default function EscalasPage() {
  
     if (jaExiste) {
       alert("Esse fixo já está nessa escala.")
+      return
+    }
+ 
+    if (cargoAtingiuLimite(escalaId, cargoId)) {
+      alert("Limite atingido para este cargo. Remova alguém antes de adicionar outra pessoa.")
       return
     }
  
@@ -578,6 +609,11 @@ export default function EscalasPage() {
  
     if (jaExiste) {
       alert("Esse freelancer já está nessa escala.")
+      return
+    }
+ 
+    if (cargoAtingiuLimite(escalaId, cargoId)) {
+      alert("Limite atingido para este cargo. Remova alguém antes de adicionar outra pessoa.")
       return
     }
  
@@ -1160,6 +1196,7 @@ export default function EscalasPage() {
               const freelancersDisponiveis = freelancersDisponiveisPorCargo(cargo.cargoId)
               const fixosSelecionados = fixosSelecionadosPorCargo(cargo.cargoId)
               const freelancersSelecionados = freelancersSelecionadosPorCargo(cargo.cargoId)
+              const cargoCompleto = cargo.necessario > 0 && cargo.totalSelecionado >= cargo.necessario
  
               return (
                 <div key={cargo.cargo} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1167,11 +1204,22 @@ export default function EscalasPage() {
                     <div>
                       <h3 className="text-2xl font-bold text-slate-900">{cargo.cargo}</h3>
                       <p className="mt-1 text-slate-600">
-                        Necessário: {cargo.necessario} | Selecionados: {cargo.totalSelecionado} | Faltando: {cargo.faltando}
+                        Necessário: {cargo.necessario} | Selecionados: {cargo.totalSelecionado} |{" "}
+                        {cargoCompleto ? (
+                          <span className="font-semibold text-green-600">Cargo completo</span>
+                        ) : (
+                          <span className="font-semibold text-red-600">Faltando: {cargo.faltando}</span>
+                        )}
                       </p>
                     </div>
  
-                    <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                    <span
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                        cargoCompleto
+                          ? "bg-green-50 text-green-700"
+                          : "bg-blue-50 text-blue-700"
+                      }`}
+                    >
                       {cargo.totalSelecionado}/{cargo.necessario}
                     </span>
                   </div>
@@ -1194,10 +1242,15 @@ export default function EscalasPage() {
  
                               <button
                                 type="button"
+                                disabled={cargoCompleto}
                                 onClick={() => adicionarFixoNaEscala(escalaSelecionada.id, fixo.id, cargo.cargoId)}
-                                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                className={`rounded-lg px-3 py-2 text-sm font-medium text-white transition ${
+                                  cargoCompleto
+                                    ? "cursor-not-allowed bg-slate-300"
+                                    : "bg-blue-600 hover:bg-blue-700"
+                                }`}
                               >
-                                Adicionar
+                                {cargoCompleto ? "Completo" : "Adicionar"}
                               </button>
                             </div>
                           ))}
@@ -1222,10 +1275,15 @@ export default function EscalasPage() {
  
                               <button
                                 type="button"
+                                disabled={cargoCompleto}
                                 onClick={() => adicionarFreelancerNaEscala(escalaSelecionada.id, freelancer.id, cargo.cargoId)}
-                                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                className={`rounded-lg px-3 py-2 text-sm font-medium text-white transition ${
+                                  cargoCompleto
+                                    ? "cursor-not-allowed bg-slate-300"
+                                    : "bg-blue-600 hover:bg-blue-700"
+                                }`}
                               >
-                                Adicionar
+                                {cargoCompleto ? "Completo" : "Adicionar"}
                               </button>
                             </div>
                           ))}
