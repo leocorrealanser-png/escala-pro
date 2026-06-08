@@ -110,6 +110,29 @@ type EscalaFreelancer = {
   } | null
 }
  
+type ModeloHorario = {
+  id: string
+  nome: string
+  horario_entrada: string
+  horario_saida: string
+  ativo?: boolean | null
+}
+ 
+type ModeloIntervalo = {
+  id: string
+  nome: string
+  horario_inicio: string
+  horario_fim: string
+  ativo?: boolean | null
+}
+ 
+type ModalHorario = {
+  tipo: "fixo" | "freelancer"
+  escalaId: string
+  pessoaId: string
+  cargoId: string | null
+}
+ 
 type CargoResumo = {
   cargo: string
   cargoId: string | null
@@ -217,6 +240,11 @@ export default function EscalasPage() {
   const [freelancers, setFreelancers] = useState<Freelancer[]>([])
   const [escalaFixos, setEscalaFixos] = useState<EscalaFixo[]>([])
   const [escalaFreelancers, setEscalaFreelancers] = useState<EscalaFreelancer[]>([])
+  const [modelosHorarios, setModelosHorarios] = useState<ModeloHorario[]>([])
+  const [modelosIntervalos, setModelosIntervalos] = useState<ModeloIntervalo[]>([])
+  const [modalHorario, setModalHorario] = useState<ModalHorario | null>(null)
+  const [modeloHorarioSelecionadoId, setModeloHorarioSelecionadoId] = useState("")
+  const [modeloIntervaloSelecionadoId, setModeloIntervaloSelecionadoId] = useState("")
  
   useEffect(() => {
     carregarDados()
@@ -237,6 +265,8 @@ export default function EscalasPage() {
         freelancersResponse,
         escalaFixosResponse,
         escalaFreelancersResponse,
+        modelosHorariosResponse,
+        modelosIntervalosResponse,
       ] = await Promise.all([
         supabase
           .from("escalas")
@@ -353,6 +383,18 @@ export default function EscalasPage() {
               )
             )
           `),
+
+        supabase
+          .from("modelos_horarios")
+          .select("id, nome, horario_entrada, horario_saida, ativo")
+          .eq("ativo", true)
+          .order("horario_entrada", { ascending: true }),
+
+        supabase
+          .from("modelos_intervalos")
+          .select("id, nome, horario_inicio, horario_fim, ativo")
+          .eq("ativo", true)
+          .order("horario_inicio", { ascending: true }),
       ])
  
       if (escalasResponse.error) throw escalasResponse.error
@@ -363,6 +405,8 @@ export default function EscalasPage() {
       if (freelancersResponse.error) throw freelancersResponse.error
       if (escalaFixosResponse.error) throw escalaFixosResponse.error
       if (escalaFreelancersResponse.error) throw escalaFreelancersResponse.error
+      if (modelosHorariosResponse.error) throw modelosHorariosResponse.error
+      if (modelosIntervalosResponse.error) throw modelosIntervalosResponse.error
  
       const escalasData = (escalasResponse.data || []) as unknown as Escala[]
  
@@ -374,6 +418,8 @@ export default function EscalasPage() {
       setFreelancers((freelancersResponse.data || []) as unknown as Freelancer[])
       setEscalaFixos((escalaFixosResponse.data || []) as unknown as EscalaFixo[])
       setEscalaFreelancers((escalaFreelancersResponse.data || []) as unknown as EscalaFreelancer[])
+      setModelosHorarios((modelosHorariosResponse.data || []) as unknown as ModeloHorario[])
+      setModelosIntervalos((modelosIntervalosResponse.data || []) as unknown as ModeloIntervalo[])
  
       if (escalasData.length > 0) {
         setEscalaSelecionadaId((atual) => {
@@ -497,88 +543,32 @@ export default function EscalasPage() {
     const jaExiste = escalaFixos.some(
       (item) => item.escala_id === escalaId && item.fixo_id === fixoId
     )
- 
+
     if (jaExiste) {
       alert("Esse fixo já está nessa escala.")
       return
     }
- 
+
     if (cargoAtingiuLimite(escalaId, cargoId)) {
       alert("Limite atingido para este cargo. Remova alguém antes de adicionar outra pessoa.")
       return
     }
- 
-    const horarioEntrada = window.prompt("Horário de entrada do fixo (ex: 18:00)")
-    if (!horarioEntrada) return
- 
-    const horarioInicioIntervalo = window.prompt("Início do intervalo do fixo (opcional, ex: 20:00)")
-    const horarioFimIntervalo = window.prompt("Fim do intervalo do fixo (opcional, ex: 20:30)")
- 
-    const horarioSaida = window.prompt("Horário de saída do fixo (ex: 23:00)")
-    if (!horarioSaida) return
- 
-    const entradaFormatada = normalizarHorario(horarioEntrada)
-    const inicioIntervaloFormatado = normalizarHorario(horarioInicioIntervalo, false)
-    const fimIntervaloFormatado = normalizarHorario(horarioFimIntervalo, false)
-    const saidaFormatada = normalizarHorario(horarioSaida)
- 
-    if (!entradaFormatada || !saidaFormatada) {
-      alert("Informe entrada e saída em formato válido. Exemplo: 18:00")
+
+    if (modelosHorarios.length === 0) {
+      alert("Cadastre ao menos um modelo de horário no Supabase antes de adicionar pessoas à escala.")
       return
     }
- 
-    if ((horarioInicioIntervalo && !inicioIntervaloFormatado) || (horarioFimIntervalo && !fimIntervaloFormatado)) {
-      alert("Informe o intervalo em formato válido. Exemplo: 20:00")
-      return
-    }
- 
-    const fixoCompleto = pessoasFixas.find((item) => item.id === fixoId) || null
- 
-    const { data, error } = await supabase
-      .from("escala_fixos")
-      .insert([
-        {
-          escala_id: escalaId,
-          fixo_id: fixoId,
-          cargo_id: cargoId,
-          horario_entrada: entradaFormatada,
-          horario_inicio_intervalo: inicioIntervaloFormatado,
-          horario_fim_intervalo: fimIntervaloFormatado,
-          horario_saida: saidaFormatada,
-        },
-      ])
-      .select("id, escala_id, fixo_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida")
-      .single()
- 
-    if (error) {
-      alert(JSON.stringify(error, null, 2))
-      console.error("Erro real ao adicionar fixo:", error)
-      return
-    }
- 
-    const novoItem: EscalaFixo = {
-      id: data.id,
-      escala_id: data.escala_id,
-      fixo_id: data.fixo_id,
-      cargo_id: data.cargo_id,
-      horario_entrada: data.horario_entrada,
-      horario_inicio_intervalo: data.horario_inicio_intervalo,
-      horario_fim_intervalo: data.horario_fim_intervalo,
-      horario_saida: data.horario_saida,
-      fixos: fixoCompleto
-        ? {
-            id: fixoCompleto.id,
-            nome: fixoCompleto.nome,
-            telefone: fixoCompleto.telefone,
-            fixo_cargos: fixoCompleto.fixo_cargos,
-          }
-        : null,
-    }
- 
-    setEscalaFixos((prev) => [...prev, novoItem])
-    setSucesso("Fixo adicionado à escala com horário de entrada e saída.")
+
+    setModeloHorarioSelecionadoId(modelosHorarios[0]?.id || "")
+    setModeloIntervaloSelecionadoId(modelosIntervalos[0]?.id || "")
+    setModalHorario({
+      tipo: "fixo",
+      escalaId,
+      pessoaId: fixoId,
+      cargoId,
+    })
   }
- 
+
   async function removerFixoDaEscala(id: string) {
     const confirmar = window.confirm("Remover fixo da escala?")
     if (!confirmar) return
@@ -606,88 +596,32 @@ export default function EscalasPage() {
     const jaExiste = escalaFreelancers.some(
       (item) => item.escala_id === escalaId && item.freelancer_id === freelancerId
     )
- 
+
     if (jaExiste) {
       alert("Esse freelancer já está nessa escala.")
       return
     }
- 
+
     if (cargoAtingiuLimite(escalaId, cargoId)) {
       alert("Limite atingido para este cargo. Remova alguém antes de adicionar outra pessoa.")
       return
     }
- 
-    const horarioEntrada = window.prompt("Horário de entrada do freelancer (ex: 18:00)")
-    if (!horarioEntrada) return
- 
-    const horarioInicioIntervalo = window.prompt("Início do intervalo do freelancer (opcional, ex: 20:00)")
-    const horarioFimIntervalo = window.prompt("Fim do intervalo do freelancer (opcional, ex: 20:30)")
- 
-    const horarioSaida = window.prompt("Horário de saída do freelancer (ex: 23:00)")
-    if (!horarioSaida) return
- 
-    const entradaFormatada = normalizarHorario(horarioEntrada)
-    const inicioIntervaloFormatado = normalizarHorario(horarioInicioIntervalo, false)
-    const fimIntervaloFormatado = normalizarHorario(horarioFimIntervalo, false)
-    const saidaFormatada = normalizarHorario(horarioSaida)
- 
-    if (!entradaFormatada || !saidaFormatada) {
-      alert("Informe entrada e saída em formato válido. Exemplo: 18:00")
+
+    if (modelosHorarios.length === 0) {
+      alert("Cadastre ao menos um modelo de horário no Supabase antes de adicionar pessoas à escala.")
       return
     }
- 
-    if ((horarioInicioIntervalo && !inicioIntervaloFormatado) || (horarioFimIntervalo && !fimIntervaloFormatado)) {
-      alert("Informe o intervalo em formato válido. Exemplo: 20:00")
-      return
-    }
- 
-    const freelancerCompleto = freelancers.find((item) => item.id === freelancerId) || null
- 
-    const { data, error } = await supabase
-      .from("escala_freelancers")
-      .insert([
-        {
-          escala_id: escalaId,
-          freelancer_id: freelancerId,
-          cargo_id: cargoId,
-          horario_entrada: entradaFormatada,
-          horario_inicio_intervalo: inicioIntervaloFormatado,
-          horario_fim_intervalo: fimIntervaloFormatado,
-          horario_saida: saidaFormatada,
-        },
-      ])
-      .select("id, escala_id, freelancer_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida")
-      .single()
- 
-    if (error) {
-      alert(JSON.stringify(error, null, 2))
-      console.error("Erro real ao adicionar freelancer:", error)
-      return
-    }
- 
-    const novoItem: EscalaFreelancer = {
-      id: data.id,
-      escala_id: data.escala_id,
-      freelancer_id: data.freelancer_id,
-      cargo_id: data.cargo_id,
-      horario_entrada: data.horario_entrada,
-      horario_inicio_intervalo: data.horario_inicio_intervalo,
-      horario_fim_intervalo: data.horario_fim_intervalo,
-      horario_saida: data.horario_saida,
-      freelancers: freelancerCompleto
-        ? {
-            id: freelancerCompleto.id,
-            nome: freelancerCompleto.nome,
-            telefone: freelancerCompleto.telefone,
-            freelancer_cargos: freelancerCompleto.freelancer_cargos,
-          }
-        : null,
-    }
- 
-    setEscalaFreelancers((prev) => [...prev, novoItem])
-    setSucesso("Freelancer adicionado à escala com horário de entrada e saída.")
+
+    setModeloHorarioSelecionadoId(modelosHorarios[0]?.id || "")
+    setModeloIntervaloSelecionadoId(modelosIntervalos[0]?.id || "")
+    setModalHorario({
+      tipo: "freelancer",
+      escalaId,
+      pessoaId: freelancerId,
+      cargoId,
+    })
   }
- 
+
   async function removerFreelancerDaEscala(id: string) {
     const confirmar = window.confirm("Remover freelancer da escala?")
     if (!confirmar) return
@@ -707,6 +641,128 @@ export default function EscalasPage() {
     setSucesso("Freelancer removido da escala com sucesso.")
   }
  
+  async function confirmarAdicaoComHorario() {
+    if (!modalHorario) return
+
+    const modeloHorario = modelosHorarios.find(
+      (item) => item.id === modeloHorarioSelecionadoId
+    )
+
+    if (!modeloHorario) {
+      alert("Selecione um horário de trabalho.")
+      return
+    }
+
+    const modeloIntervalo = modelosIntervalos.find(
+      (item) => item.id === modeloIntervaloSelecionadoId
+    )
+
+    const horarioEntrada = formatHorario(modeloHorario.horario_entrada)
+    const horarioSaida = formatHorario(modeloHorario.horario_saida)
+    const horarioInicioIntervalo = modeloIntervalo ? formatHorario(modeloIntervalo.horario_inicio) : null
+    const horarioFimIntervalo = modeloIntervalo ? formatHorario(modeloIntervalo.horario_fim) : null
+
+    if (modalHorario.tipo === "fixo") {
+      const fixoCompleto = pessoasFixas.find((item) => item.id === modalHorario.pessoaId) || null
+
+      const { data, error } = await supabase
+        .from("escala_fixos")
+        .insert([
+          {
+            escala_id: modalHorario.escalaId,
+            fixo_id: modalHorario.pessoaId,
+            cargo_id: modalHorario.cargoId,
+            horario_entrada: horarioEntrada,
+            horario_inicio_intervalo: horarioInicioIntervalo,
+            horario_fim_intervalo: horarioFimIntervalo,
+            horario_saida: horarioSaida,
+          },
+        ])
+        .select("id, escala_id, fixo_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida")
+        .single()
+
+      if (error) {
+        alert(JSON.stringify(error, null, 2))
+        console.error("Erro real ao adicionar fixo:", error)
+        return
+      }
+
+      const novoItem: EscalaFixo = {
+        id: data.id,
+        escala_id: data.escala_id,
+        fixo_id: data.fixo_id,
+        cargo_id: data.cargo_id,
+        horario_entrada: data.horario_entrada,
+        horario_inicio_intervalo: data.horario_inicio_intervalo,
+        horario_fim_intervalo: data.horario_fim_intervalo,
+        horario_saida: data.horario_saida,
+        fixos: fixoCompleto
+          ? {
+              id: fixoCompleto.id,
+              nome: fixoCompleto.nome,
+              telefone: fixoCompleto.telefone,
+              fixo_cargos: fixoCompleto.fixo_cargos,
+            }
+          : null,
+      }
+
+      setEscalaFixos((prev) => [...prev, novoItem])
+      setSucesso("Fixo adicionado à escala com modelo de horário.")
+    }
+
+    if (modalHorario.tipo === "freelancer") {
+      const freelancerCompleto = freelancers.find((item) => item.id === modalHorario.pessoaId) || null
+
+      const { data, error } = await supabase
+        .from("escala_freelancers")
+        .insert([
+          {
+            escala_id: modalHorario.escalaId,
+            freelancer_id: modalHorario.pessoaId,
+            cargo_id: modalHorario.cargoId,
+            horario_entrada: horarioEntrada,
+            horario_inicio_intervalo: horarioInicioIntervalo,
+            horario_fim_intervalo: horarioFimIntervalo,
+            horario_saida: horarioSaida,
+          },
+        ])
+        .select("id, escala_id, freelancer_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida")
+        .single()
+
+      if (error) {
+        alert(JSON.stringify(error, null, 2))
+        console.error("Erro real ao adicionar freelancer:", error)
+        return
+      }
+
+      const novoItem: EscalaFreelancer = {
+        id: data.id,
+        escala_id: data.escala_id,
+        freelancer_id: data.freelancer_id,
+        cargo_id: data.cargo_id,
+        horario_entrada: data.horario_entrada,
+        horario_inicio_intervalo: data.horario_inicio_intervalo,
+        horario_fim_intervalo: data.horario_fim_intervalo,
+        horario_saida: data.horario_saida,
+        freelancers: freelancerCompleto
+          ? {
+              id: freelancerCompleto.id,
+              nome: freelancerCompleto.nome,
+              telefone: freelancerCompleto.telefone,
+              freelancer_cargos: freelancerCompleto.freelancer_cargos,
+            }
+          : null,
+      }
+
+      setEscalaFreelancers((prev) => [...prev, novoItem])
+      setSucesso("Freelancer adicionado à escala com modelo de horário.")
+    }
+
+    setModalHorario(null)
+    setModeloHorarioSelecionadoId("")
+    setModeloIntervaloSelecionadoId("")
+  }
+
   function imprimirRelatorioEscala() {
     const elemento = document.getElementById("relatorio-escala-impressao")
     if (!elemento || !escalaSelecionada) return
@@ -981,6 +1037,26 @@ export default function EscalasPage() {
     })
   }, [escalaSelecionada, fixosDaEscala, freelancersDaEscala, cargosDoCenario])
  
+  const pessoaDoModal = useMemo(() => {
+    if (!modalHorario) return null
+
+    if (modalHorario.tipo === "fixo") {
+      const fixo = pessoasFixas.find((item) => item.id === modalHorario.pessoaId)
+      return fixo?.nome || "Fixo"
+    }
+
+    const freelancer = freelancers.find((item) => item.id === modalHorario.pessoaId)
+    return freelancer?.nome || "Freelancer"
+  }, [modalHorario, pessoasFixas, freelancers])
+
+  const horarioSelecionado = useMemo(() => {
+    return modelosHorarios.find((item) => item.id === modeloHorarioSelecionadoId) || null
+  }, [modelosHorarios, modeloHorarioSelecionadoId])
+
+  const intervaloSelecionado = useMemo(() => {
+    return modelosIntervalos.find((item) => item.id === modeloIntervaloSelecionadoId) || null
+  }, [modelosIntervalos, modeloIntervaloSelecionadoId])
+
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -1350,6 +1426,93 @@ export default function EscalasPage() {
         </section>
       </div>
  
+      {modalHorario ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-[#1E5AA8]">Escolher horário</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Pessoa selecionada: <span className="font-semibold text-slate-900">{pessoaDoModal}</span>
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModalHorario(null)}
+                className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  1. Horário de trabalho
+                </label>
+                <select
+                  value={modeloHorarioSelecionadoId}
+                  onChange={(e) => setModeloHorarioSelecionadoId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400"
+                >
+                  {modelosHorarios.map((modelo) => (
+                    <option key={modelo.id} value={modelo.id}>
+                      {modelo.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  2. Intervalo
+                </label>
+                <select
+                  value={modeloIntervaloSelecionadoId}
+                  onChange={(e) => setModeloIntervaloSelecionadoId(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400"
+                >
+                  <option value="">Sem intervalo</option>
+                  {modelosIntervalos.map((modelo) => (
+                    <option key={modelo.id} value={modelo.id}>
+                      {modelo.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+                <p className="font-semibold">Prévia</p>
+                <p className="mt-1">
+                  Entrada: {formatHorario(horarioSelecionado?.horario_entrada)} |
+                  Intervalo: {intervaloSelecionado ? `${formatHorario(intervaloSelecionado.horario_inicio)} - ${formatHorario(intervaloSelecionado.horario_fim)}` : "Sem intervalo"} |
+                  Saída: {formatHorario(horarioSelecionado?.horario_saida)}
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModalHorario(null)}
+                  className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmarAdicaoComHorario}
+                  className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Confirmar e adicionar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {mostrarRelatorio && escalaSelecionada ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl bg-white shadow-xl">
@@ -1459,3 +1622,4 @@ function ResumoCard({
     </div>
   )
 }
+
