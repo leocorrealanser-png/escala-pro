@@ -85,6 +85,11 @@ type EscalaFixo = {
   horario_inicio_intervalo?: string | null
   horario_fim_intervalo?: string | null
   horario_saida?: string | null
+  praca_id?: string | null
+  pracas?: {
+    id: string
+    nome: string
+  } | null
   fixos?: {
     id: string
     nome?: string | null
@@ -102,12 +107,23 @@ type EscalaFreelancer = {
   horario_inicio_intervalo?: string | null
   horario_fim_intervalo?: string | null
   horario_saida?: string | null
+  praca_id?: string | null
+  pracas?: {
+    id: string
+    nome: string
+  } | null
   freelancers?: {
     id: string
     nome: string
     telefone: string | null
     freelancer_cargos?: FreelancerCargo[]
   } | null
+}
+ 
+type Praca = {
+  id: string
+  nome: string
+  ativo?: boolean | null
 }
  
 type ModeloHorario = {
@@ -147,6 +163,7 @@ type RelatorioItem = {
   nome: string
   tipo: "Fixo" | "Freelancer"
   cargo: string
+  praca?: string | null
   entrada?: string | null
   inicioIntervalo?: string | null
   fimIntervalo?: string | null
@@ -242,9 +259,11 @@ export default function EscalasPage() {
   const [escalaFreelancers, setEscalaFreelancers] = useState<EscalaFreelancer[]>([])
   const [modelosHorarios, setModelosHorarios] = useState<ModeloHorario[]>([])
   const [modelosIntervalos, setModelosIntervalos] = useState<ModeloIntervalo[]>([])
+  const [pracas, setPracas] = useState<Praca[]>([])
   const [modalHorario, setModalHorario] = useState<ModalHorario | null>(null)
   const [modeloHorarioSelecionadoId, setModeloHorarioSelecionadoId] = useState("")
   const [modeloIntervaloSelecionadoId, setModeloIntervaloSelecionadoId] = useState("")
+  const [pracaSelecionadaId, setPracaSelecionadaId] = useState("")
  
   useEffect(() => {
     carregarDados()
@@ -267,6 +286,7 @@ export default function EscalasPage() {
         escalaFreelancersResponse,
         modelosHorariosResponse,
         modelosIntervalosResponse,
+        pracasResponse,
       ] = await Promise.all([
         supabase
           .from("escalas")
@@ -345,6 +365,11 @@ export default function EscalasPage() {
             horario_inicio_intervalo,
             horario_fim_intervalo,
             horario_saida,
+            praca_id,
+            pracas (
+              id,
+              nome
+            ),
             fixos (
               id,
               nome,
@@ -370,6 +395,11 @@ export default function EscalasPage() {
             horario_inicio_intervalo,
             horario_fim_intervalo,
             horario_saida,
+            praca_id,
+            pracas (
+              id,
+              nome
+            ),
             freelancers (
               id,
               nome,
@@ -395,6 +425,12 @@ export default function EscalasPage() {
           .select("id, nome, horario_inicio, horario_fim, ativo")
           .eq("ativo", true)
           .order("horario_inicio", { ascending: true }),
+ 
+        supabase
+          .from("pracas")
+          .select("id, nome, ativo")
+          .eq("ativo", true)
+          .order("nome", { ascending: true }),
       ])
  
       if (escalasResponse.error) throw escalasResponse.error
@@ -407,6 +443,7 @@ export default function EscalasPage() {
       if (escalaFreelancersResponse.error) throw escalaFreelancersResponse.error
       if (modelosHorariosResponse.error) throw modelosHorariosResponse.error
       if (modelosIntervalosResponse.error) throw modelosIntervalosResponse.error
+      if (pracasResponse.error) throw pracasResponse.error
  
       const escalasData = (escalasResponse.data || []) as unknown as Escala[]
  
@@ -420,6 +457,7 @@ export default function EscalasPage() {
       setEscalaFreelancers((escalaFreelancersResponse.data || []) as unknown as EscalaFreelancer[])
       setModelosHorarios((modelosHorariosResponse.data || []) as unknown as ModeloHorario[])
       setModelosIntervalos((modelosIntervalosResponse.data || []) as unknown as ModeloIntervalo[])
+      setPracas((pracasResponse.data || []) as unknown as Praca[])
  
       if (escalasData.length > 0) {
         setEscalaSelecionadaId((atual) => {
@@ -559,8 +597,14 @@ export default function EscalasPage() {
       return
     }
  
+    if (cargoEhGarcom(cargoId) && pracas.length === 0) {
+      alert("Cadastre ao menos uma praça no Supabase antes de adicionar garçons à escala.")
+      return
+    }
+ 
     setModeloHorarioSelecionadoId(modelosHorarios[0]?.id || "")
     setModeloIntervaloSelecionadoId(modelosIntervalos[0]?.id || "")
+    setPracaSelecionadaId(cargoEhGarcom(cargoId) ? pracaPadraoId() : "")
     setModalHorario({
       tipo: "fixo",
       escalaId,
@@ -612,8 +656,14 @@ export default function EscalasPage() {
       return
     }
  
+    if (cargoEhGarcom(cargoId) && pracas.length === 0) {
+      alert("Cadastre ao menos uma praça no Supabase antes de adicionar garçons à escala.")
+      return
+    }
+ 
     setModeloHorarioSelecionadoId(modelosHorarios[0]?.id || "")
     setModeloIntervaloSelecionadoId(modelosIntervalos[0]?.id || "")
+    setPracaSelecionadaId(cargoEhGarcom(cargoId) ? pracaPadraoId() : "")
     setModalHorario({
       tipo: "freelancer",
       escalaId,
@@ -661,6 +711,15 @@ export default function EscalasPage() {
     const horarioSaida = formatHorario(modeloHorario.horario_saida)
     const horarioInicioIntervalo = modeloIntervalo ? formatHorario(modeloIntervalo.horario_inicio) : null
     const horarioFimIntervalo = modeloIntervalo ? formatHorario(modeloIntervalo.horario_fim) : null
+    const deveSelecionarPraca = cargoEhGarcom(modalHorario.cargoId)
+    const pracaSelecionada = deveSelecionarPraca
+      ? pracas.find((item) => item.id === pracaSelecionadaId) || null
+      : null
+ 
+    if (deveSelecionarPraca && !pracaSelecionada) {
+      alert("Selecione uma praça para este garçom.")
+      return
+    }
  
     if (modalHorario.tipo === "fixo") {
       const fixoCompleto = pessoasFixas.find((item) => item.id === modalHorario.pessoaId) || null
@@ -676,9 +735,10 @@ export default function EscalasPage() {
             horario_inicio_intervalo: horarioInicioIntervalo,
             horario_fim_intervalo: horarioFimIntervalo,
             horario_saida: horarioSaida,
+            praca_id: pracaSelecionada?.id || null,
           },
         ])
-        .select("id, escala_id, fixo_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida")
+        .select("id, escala_id, fixo_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida, praca_id")
         .single()
  
       if (error) {
@@ -696,6 +756,13 @@ export default function EscalasPage() {
         horario_inicio_intervalo: data.horario_inicio_intervalo,
         horario_fim_intervalo: data.horario_fim_intervalo,
         horario_saida: data.horario_saida,
+        praca_id: data.praca_id,
+        pracas: pracaSelecionada
+          ? {
+              id: pracaSelecionada.id,
+              nome: pracaSelecionada.nome,
+            }
+          : null,
         fixos: fixoCompleto
           ? {
               id: fixoCompleto.id,
@@ -724,9 +791,10 @@ export default function EscalasPage() {
             horario_inicio_intervalo: horarioInicioIntervalo,
             horario_fim_intervalo: horarioFimIntervalo,
             horario_saida: horarioSaida,
+            praca_id: pracaSelecionada?.id || null,
           },
         ])
-        .select("id, escala_id, freelancer_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida")
+        .select("id, escala_id, freelancer_id, cargo_id, horario_entrada, horario_inicio_intervalo, horario_fim_intervalo, horario_saida, praca_id")
         .single()
  
       if (error) {
@@ -744,6 +812,13 @@ export default function EscalasPage() {
         horario_inicio_intervalo: data.horario_inicio_intervalo,
         horario_fim_intervalo: data.horario_fim_intervalo,
         horario_saida: data.horario_saida,
+        praca_id: data.praca_id,
+        pracas: pracaSelecionada
+          ? {
+              id: pracaSelecionada.id,
+              nome: pracaSelecionada.nome,
+            }
+          : null,
         freelancers: freelancerCompleto
           ? {
               id: freelancerCompleto.id,
@@ -761,6 +836,7 @@ export default function EscalasPage() {
     setModalHorario(null)
     setModeloHorarioSelecionadoId("")
     setModeloIntervaloSelecionadoId("")
+    setPracaSelecionadaId("")
   }
  
   function imprimirRelatorioEscala() {
@@ -801,37 +877,6 @@ export default function EscalasPage() {
               font-size: 14px;
             }
  
-            .relatorio-cabecalho {
-              margin-bottom: 32px;
-              padding-bottom: 24px;
-              border-bottom: 1px solid #e2e8f0;
-            }
- 
-            .relatorio-data {
-              margin-top: 24px;
-              margin-bottom: 0;
-              color: #0f172a;
-              font-size: 42px;
-              line-height: 1.1;
-              font-weight: 800;
-            }
- 
-            .relatorio-dia {
-              margin-top: 8px;
-              margin-bottom: 0;
-              color: #475569;
-              font-size: 28px;
-              font-weight: 700;
-            }
- 
-            .relatorio-cenario {
-              margin-top: 12px;
-              margin-bottom: 0;
-              color: #64748b;
-              font-size: 16px;
-              font-weight: 600;
-            }
- 
             table {
               width: 100%;
               border-collapse: collapse;
@@ -852,6 +897,9 @@ export default function EscalasPage() {
           </style>
         </head>
         <body>
+          <h1>Relatório da escala</h1>
+          <div class="data-destaque">${formatDateWithWeekday(escalaSelecionada.data)}</div>
+          <p class="subinfo">Cenário ${escalaSelecionada.cenarios?.numero ?? "-"}</p>
           ${elemento.innerHTML}
         </body>
       </html>
@@ -1025,6 +1073,27 @@ export default function EscalasPage() {
     return cargo?.cargos?.nome || "Sem cargo"
   }
  
+  function cargoEhGarcom(cargoId?: string | null) {
+    const nome = nomeCargoPorId(cargoId)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+ 
+    return nome.includes("garcom")
+  }
+ 
+  function pracaPadraoId() {
+    const geral = pracas.find(
+      (item) =>
+        item.nome
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase() === "geral"
+    )
+ 
+    return geral?.id || pracas[0]?.id || ""
+  }
+ 
   const relatorioDaEscala = useMemo<RelatorioItem[]>(() => {
     if (!escalaSelecionada) return []
  
@@ -1035,6 +1104,7 @@ export default function EscalasPage() {
         nome: item.fixos?.nome || "Fixo",
         tipo: "Fixo",
         cargo: nomeCargoPorId(item.cargo_id),
+        praca: item.pracas?.nome || null,
         entrada: item.horario_entrada,
         inicioIntervalo: item.horario_inicio_intervalo,
         fimIntervalo: item.horario_fim_intervalo,
@@ -1047,6 +1117,7 @@ export default function EscalasPage() {
         nome: item.freelancers?.nome || "Freelancer",
         tipo: "Freelancer",
         cargo: nomeCargoPorId(item.cargo_id),
+        praca: item.pracas?.nome || null,
         entrada: item.horario_entrada,
         inicioIntervalo: item.horario_inicio_intervalo,
         fimIntervalo: item.horario_fim_intervalo,
@@ -1084,6 +1155,14 @@ export default function EscalasPage() {
   const intervaloSelecionado = useMemo(() => {
     return modelosIntervalos.find((item) => item.id === modeloIntervaloSelecionadoId) || null
   }, [modelosIntervalos, modeloIntervaloSelecionadoId])
+ 
+  const modalEhGarcom = useMemo(() => {
+    return modalHorario ? cargoEhGarcom(modalHorario.cargoId) : false
+  }, [modalHorario, cargosDoCenario])
+ 
+  const pracaSelecionada = useMemo(() => {
+    return pracas.find((item) => item.id === pracaSelecionadaId) || null
+  }, [pracas, pracaSelecionadaId])
  
   if (loading) {
     return (
@@ -1408,6 +1487,11 @@ export default function EscalasPage() {
                                 <p className="font-semibold text-slate-900">{item.fixos?.nome || "Fixo"}</p>
                                 <p className="text-sm font-medium text-blue-700">Fixo</p>
                                 <p className="text-sm text-slate-600">{item.fixos?.telefone || "Sem telefone"}</p>
+                                {cargoEhGarcom(item.cargo_id) ? (
+                                  <p className="mt-1 text-sm font-semibold text-slate-800">
+                                    Praça: {item.pracas?.nome || "Não definida"}
+                                  </p>
+                                ) : null}
                                 <p className="mt-1 text-sm font-medium text-slate-700">
                                   Entrada: {formatHorario(item.horario_entrada)} | Intervalo: {formatHorario(item.horario_inicio_intervalo)} - {formatHorario(item.horario_fim_intervalo)} | Saída: {formatHorario(item.horario_saida)}
                                 </p>
@@ -1429,6 +1513,11 @@ export default function EscalasPage() {
                                 <p className="font-semibold text-slate-900">{item.freelancers?.nome || "Freelancer"}</p>
                                 <p className="text-sm font-medium text-emerald-700">Freelancer</p>
                                 <p className="text-sm text-slate-600">{item.freelancers?.telefone || "Sem telefone"}</p>
+                                {cargoEhGarcom(item.cargo_id) ? (
+                                  <p className="mt-1 text-sm font-semibold text-slate-800">
+                                    Praça: {item.pracas?.nome || "Não definida"}
+                                  </p>
+                                ) : null}
                                 <p className="mt-1 text-sm font-medium text-slate-700">
                                   Entrada: {formatHorario(item.horario_entrada)} | Intervalo: {formatHorario(item.horario_inicio_intervalo)} - {formatHorario(item.horario_fim_intervalo)} | Saída: {formatHorario(item.horario_saida)}
                                 </p>
@@ -1510,6 +1599,26 @@ export default function EscalasPage() {
                 </select>
               </div>
  
+              {modalEhGarcom ? (
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    3. Praça do garçom
+                  </label>
+                  <select
+                    value={pracaSelecionadaId}
+                    onChange={(e) => setPracaSelecionadaId(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400"
+                  >
+                    <option value="">Selecione uma praça</option>
+                    {pracas.map((praca) => (
+                      <option key={praca.id} value={praca.id}>
+                        {praca.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+ 
               <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
                 <p className="font-semibold">Prévia</p>
                 <p className="mt-1">
@@ -1517,6 +1626,11 @@ export default function EscalasPage() {
                   Intervalo: {intervaloSelecionado ? `${formatHorario(intervaloSelecionado.horario_inicio)} - ${formatHorario(intervaloSelecionado.horario_fim)}` : "Sem intervalo"} |
                   Saída: {formatHorario(horarioSelecionado?.horario_saida)}
                 </p>
+                {modalEhGarcom ? (
+                  <p className="mt-1">
+                    Praça: {pracaSelecionada?.nome || "Não selecionada"}
+                  </p>
+                ) : null}
               </div>
  
               <div className="flex justify-end gap-3">
@@ -1589,25 +1703,7 @@ export default function EscalasPage() {
             </div>
  
             <div className="flex-1 overflow-y-auto p-6">
-              <div id="relatorio-escala-impressao" className="bg-white p-6">
-                <div className="relatorio-cabecalho mb-8 border-b border-slate-200 pb-6">
-                  <h1 className="text-4xl font-extrabold text-[#1E5AA8]">
-                    Relatório da escala
-                  </h1>
- 
-                  <p className="relatorio-data mt-6 text-5xl font-extrabold leading-tight text-slate-900">
-                    {formatDateToBR(escalaSelecionada.data)}
-                  </p>
- 
-                  <p className="relatorio-dia mt-2 text-3xl font-bold text-slate-600">
-                    {formatWeekdayOnly(escalaSelecionada.data)}
-                  </p>
- 
-                  <p className="relatorio-cenario mt-3 text-lg font-semibold text-slate-500">
-                    Cenário {escalaSelecionada.cenarios?.numero ?? "-"}
-                  </p>
-                </div>
- 
+              <div id="relatorio-escala-impressao">
                 {relatorioDaEscala.length === 0 ? (
                   <p className="text-slate-600">Nenhum funcionário encontrado para esta escala.</p>
                 ) : (
@@ -1618,6 +1714,7 @@ export default function EscalasPage() {
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Nome</th>
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Tipo</th>
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Função designada</th>
+                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Praça</th>
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Entrada</th>
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Início intervalo</th>
                           <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Fim intervalo</th>
@@ -1631,6 +1728,7 @@ export default function EscalasPage() {
                             <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-800">{item.nome}</td>
                             <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{item.tipo}</td>
                             <td className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">{item.cargo}</td>
+                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{item.praca || "-"}</td>
                             <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.entrada)}</td>
                             <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.inicioIntervalo)}</td>
                             <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.fimIntervalo)}</td>
@@ -1668,3 +1766,4 @@ function ResumoCard({
     </div>
   )
 }
+ 
