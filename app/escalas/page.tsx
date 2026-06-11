@@ -877,6 +877,37 @@ export default function EscalasPage() {
               font-size: 14px;
             }
  
+            .relatorio-cabecalho {
+              margin-bottom: 32px;
+              padding-bottom: 24px;
+              border-bottom: 1px solid #e2e8f0;
+            }
+ 
+            .relatorio-data {
+              margin-top: 24px;
+              margin-bottom: 0;
+              color: #0f172a;
+              font-size: 42px;
+              line-height: 1.1;
+              font-weight: 800;
+            }
+ 
+            .relatorio-dia {
+              margin-top: 8px;
+              margin-bottom: 0;
+              color: #475569;
+              font-size: 28px;
+              font-weight: 700;
+            }
+ 
+            .relatorio-cenario {
+              margin-top: 12px;
+              margin-bottom: 0;
+              color: #64748b;
+              font-size: 16px;
+              font-weight: 600;
+            }
+ 
             table {
               width: 100%;
               border-collapse: collapse;
@@ -897,9 +928,6 @@ export default function EscalasPage() {
           </style>
         </head>
         <body>
-          <h1>Relatório da escala</h1>
-          <div class="data-destaque">${formatDateWithWeekday(escalaSelecionada.data)}</div>
-          <p class="subinfo">Cenário ${escalaSelecionada.cenarios?.numero ?? "-"}</p>
           ${elemento.innerHTML}
         </body>
       </html>
@@ -1703,7 +1731,25 @@ export default function EscalasPage() {
             </div>
  
             <div className="flex-1 overflow-y-auto p-6">
-              <div id="relatorio-escala-impressao">
+              <div id="relatorio-escala-impressao" className="bg-white p-6">
+                <div className="relatorio-cabecalho mb-8 border-b border-slate-200 pb-6">
+                  <h1 className="text-4xl font-extrabold text-[#1E5AA8]">
+                    Relatório da escala
+                  </h1>
+ 
+                  <p className="relatorio-data mt-6 text-5xl font-extrabold leading-tight text-slate-900">
+                    {formatDateToBR(escalaSelecionada.data)}
+                  </p>
+ 
+                  <p className="relatorio-dia mt-2 text-3xl font-bold text-slate-600">
+                    {formatWeekdayOnly(escalaSelecionada.data)}
+                  </p>
+ 
+                  <p className="relatorio-cenario mt-3 text-lg font-semibold text-slate-500">
+                    Cenário {escalaSelecionada.cenarios?.numero ?? "-"}
+                  </p>
+                </div>
+ 
                 {relatorioDaEscala.length === 0 ? (
                   <p className="text-slate-600">Nenhum funcionário encontrado para esta escala.</p>
                 ) : (
