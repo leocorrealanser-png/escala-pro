@@ -1,8 +1,10 @@
 "use client"
-
+ 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-
+ 
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+ 
 type Fixo = {
   id: string
   nome: string
@@ -12,7 +14,7 @@ type Fixo = {
     nome: string
   } | null
 }
-
+ 
 type Ausencia = {
   id: string
   data_inicio: string
@@ -27,56 +29,57 @@ type Ausencia = {
     } | null
   } | null
 }
-
+ 
 function formatDateToInput(date: Date) {
   const year = date.getFullYear()
   const month = `${date.getMonth() + 1}`.padStart(2, "0")
   const day = `${date.getDate()}`.padStart(2, "0")
   return `${year}-${month}-${day}`
 }
-
+ 
 function formatDateToBR(dateString: string) {
   if (!dateString) return "—"
-
+ 
   const [year, month, day] = dateString.split("-")
   return `${day}/${month}/${year}`
 }
-
+ 
 function formatPeriodo(dataInicio: string, dataFim: string) {
   if (!dataInicio || !dataFim) return "—"
-
+ 
   if (dataInicio === dataFim) {
     return formatDateToBR(dataInicio)
   }
-
+ 
   return `${formatDateToBR(dataInicio)} até ${formatDateToBR(dataFim)}`
 }
-
+ 
 export default function AusenciasPage() {
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState("")
   const [sucesso, setSucesso] = useState("")
-
+ 
   const [fixos, setFixos] = useState<Fixo[]>([])
   const [ausencias, setAusencias] = useState<Ausencia[]>([])
-
+ 
   const [dataInicio, setDataInicio] = useState(formatDateToInput(new Date()))
   const [dataFim, setDataFim] = useState(formatDateToInput(new Date()))
   const [fixoId, setFixoId] = useState("")
   const [motivo, setMotivo] = useState("Folga")
-
+ 
   async function carregarDados() {
     try {
       setLoading(true)
       setErro("")
-
+ 
       const [fixosResponse, ausenciasResponse] = await Promise.all([
         supabase
           .from("fixos")
           .select("id, nome, cargo_id, cargos(id, nome)")
+          .eq("empresa_id", EMPRESA_ID)
           .order("nome", { ascending: true }),
-
+ 
         supabase
           .from("ausencias_fixos")
           .select(`
@@ -93,18 +96,19 @@ export default function AusenciasPage() {
               )
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .order("data_inicio", { ascending: false }),
       ])
-
+ 
       if (fixosResponse.error) throw fixosResponse.error
       if (ausenciasResponse.error) throw ausenciasResponse.error
-
+ 
       const fixosData = (fixosResponse.data || []) as any
       const ausenciasData = (ausenciasResponse.data || []) as any
-
+ 
       setFixos(fixosData)
       setAusencias(ausenciasData)
-
+ 
       if (fixosData.length > 0 && !fixoId) {
         setFixoId(fixosData[0].id)
       }
@@ -115,38 +119,39 @@ export default function AusenciasPage() {
       setLoading(false)
     }
   }
-
+ 
   useEffect(() => {
     carregarDados()
   }, [])
-
+ 
   async function salvarAusencia() {
     try {
       setSalvando(true)
       setErro("")
       setSucesso("")
-
+ 
       if (!dataInicio || !dataFim || !fixoId || !motivo) {
         setErro("Preencha data inicial, data final, funcionário e motivo.")
         return
       }
-
+ 
       if (dataFim < dataInicio) {
         setErro("A data final não pode ser menor que a data inicial.")
         return
       }
-
+ 
       const { error } = await supabase.from("ausencias_fixos").insert([
         {
           data_inicio: dataInicio,
           data_fim: dataFim,
           fixo_id: fixoId,
           motivo,
+          empresa_id: EMPRESA_ID,
         },
       ])
-
+ 
       if (error) throw error
-
+ 
       setSucesso("Ausência cadastrada com sucesso.")
       await carregarDados()
     } catch (error: any) {
@@ -156,22 +161,23 @@ export default function AusenciasPage() {
       setSalvando(false)
     }
   }
-
+ 
   async function excluirAusencia(id: string) {
     const confirmou = window.confirm("Deseja excluir esta ausência?")
     if (!confirmou) return
-
+ 
     try {
       setErro("")
       setSucesso("")
-
+ 
       const { error } = await supabase
         .from("ausencias_fixos")
         .delete()
         .eq("id", id)
-
+        .eq("empresa_id", EMPRESA_ID)
+ 
       if (error) throw error
-
+ 
       setSucesso("Ausência excluída com sucesso.")
       await carregarDados()
     } catch (error: any) {
@@ -179,7 +185,7 @@ export default function AusenciasPage() {
       setErro(error?.message || "Erro ao excluir ausência.")
     }
   }
-
+ 
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -190,7 +196,7 @@ export default function AusenciasPage() {
       </div>
     )
   }
-
+ 
   return (
     <div className="space-y-8 p-6 text-slate-800">
       <div>
@@ -199,22 +205,22 @@ export default function AusenciasPage() {
           Cadastre faltas, folgas, férias e afastamentos dos funcionários fixos.
         </p>
       </div>
-
+ 
       {erro ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {erro}
         </div>
       ) : null}
-
+ 
       {sucesso ? (
         <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
           {sucesso}
         </div>
       ) : null}
-
+ 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-3xl font-bold text-blue-700">Cadastrar ausência</h2>
-
+ 
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -227,7 +233,7 @@ export default function AusenciasPage() {
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
             />
           </div>
-
+ 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Data final
@@ -239,7 +245,7 @@ export default function AusenciasPage() {
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
             />
           </div>
-
+ 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Funcionário fixo
@@ -256,7 +262,7 @@ export default function AusenciasPage() {
               ))}
             </select>
           </div>
-
+ 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Motivo
@@ -273,7 +279,7 @@ export default function AusenciasPage() {
             </select>
           </div>
         </div>
-
+ 
         <button
           onClick={salvarAusencia}
           disabled={salvando}
@@ -282,16 +288,16 @@ export default function AusenciasPage() {
           {salvando ? "Salvando..." : "Salvar ausência"}
         </button>
       </section>
-
+ 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center justify-between gap-4">
           <h2 className="text-3xl font-bold text-blue-700">Ausências cadastradas</h2>
-
+ 
           <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
             {ausencias.length} registros
           </span>
         </div>
-
+ 
         {ausencias.length === 0 ? (
           <p className="text-slate-600">Nenhuma ausência cadastrada ainda.</p>
         ) : (
@@ -322,7 +328,7 @@ export default function AusenciasPage() {
                   </th>
                 </tr>
               </thead>
-
+ 
               <tbody className="bg-white">
                 {ausencias.map((ausencia) => (
                   <tr key={ausencia.id} className="hover:bg-slate-50">

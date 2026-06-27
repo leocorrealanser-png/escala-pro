@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { toPng } from "html-to-image"
  
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+ 
 type Escala = {
   id: string
   data: string
@@ -246,6 +248,10 @@ export default function EscalasPage() {
   const [erro, setErro] = useState("")
   const [sucesso, setSucesso] = useState("")
   const [mostrarRelatorio, setMostrarRelatorio] = useState(false)
+  const [mostrarCopiarEscala, setMostrarCopiarEscala] = useState(false)
+  const [escalaDestinoCopiaId, setEscalaDestinoCopiaId] = useState("")
+  const [escalaOrigemCopiaId, setEscalaOrigemCopiaId] = useState("")
+  const [copiandoEscala, setCopiandoEscala] = useState(false)
  
   const [escalas, setEscalas] = useState<Escala[]>([])
   const [cenarios, setCenarios] = useState<Cenario[]>([])
@@ -303,16 +309,19 @@ export default function EscalasPage() {
               total_pessoas
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .order("data", { ascending: false }),
  
         supabase
           .from("cenarios")
           .select("id, numero, faturamento, faturamento_esperado, total_pessoas")
+          .eq("empresa_id", EMPRESA_ID)
           .order("numero", { ascending: true }),
  
         supabase
           .from("cenarios_cargos")
-          .select("id, cenario_id, cargo_id, quantidade, cargos(id, nome)"),
+          .select("id, cenario_id, cargo_id, quantidade, cargos(id, nome)")
+          .eq("empresa_id", EMPRESA_ID),
  
         supabase
           .from("fixos")
@@ -329,12 +338,14 @@ export default function EscalasPage() {
               )
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true)
           .order("nome", { ascending: true }),
  
         supabase
           .from("ausencias_fixos")
-          .select("id, fixo_id, data_inicio, data_fim"),
+          .select("id, fixo_id, data_inicio, data_fim")
+          .eq("empresa_id", EMPRESA_ID),
  
         supabase
           .from("freelancers")
@@ -351,6 +362,7 @@ export default function EscalasPage() {
               )
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true)
           .order("nome", { ascending: true }),
  
@@ -382,7 +394,8 @@ export default function EscalasPage() {
                 )
               )
             )
-          `),
+          `)
+          .eq("empresa_id", EMPRESA_ID),
  
         supabase
           .from("escala_freelancers")
@@ -412,23 +425,27 @@ export default function EscalasPage() {
                 )
               )
             )
-          `),
+          `)
+          .eq("empresa_id", EMPRESA_ID),
  
         supabase
           .from("modelos_horarios")
           .select("id, nome, horario_entrada, horario_saida, ativo")
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true)
           .order("horario_entrada", { ascending: true }),
  
         supabase
           .from("modelos_intervalos")
           .select("id, nome, horario_inicio, horario_fim, ativo")
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true)
           .order("horario_inicio", { ascending: true }),
  
         supabase
           .from("pracas")
           .select("id, nome, ativo")
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true)
           .order("nome", { ascending: true }),
       ])
@@ -480,7 +497,11 @@ export default function EscalasPage() {
     const confirmar = window.confirm("Deseja realmente excluir esta escala?")
     if (!confirmar) return
  
-    const { error } = await supabase.from("escalas").delete().eq("id", id)
+    const { error } = await supabase
+      .from("escalas")
+      .delete()
+      .eq("id", id)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (error) {
       console.error(error)
@@ -496,6 +517,142 @@ export default function EscalasPage() {
     await carregarDados()
   }
  
+  function quantidadePessoasNaEscala(escalaId: string) {
+    const fixos = escalaFixos.filter((item) => item.escala_id === escalaId).length
+    const freelancers = escalaFreelancers.filter((item) => item.escala_id === escalaId).length
+
+    return fixos + freelancers
+  }
+
+  function abrirModalCopiarEscala(escalaDestinoId: string) {
+    const primeiraOrigemDisponivel = escalas.find((item) => item.id !== escalaDestinoId)
+
+    setEscalaSelecionadaId(escalaDestinoId)
+    setEscalaDestinoCopiaId(escalaDestinoId)
+    setEscalaOrigemCopiaId(primeiraOrigemDisponivel?.id || "")
+    setMostrarCopiarEscala(true)
+  }
+
+  function fecharModalCopiarEscala() {
+    if (copiandoEscala) return
+
+    setMostrarCopiarEscala(false)
+    setEscalaDestinoCopiaId("")
+    setEscalaOrigemCopiaId("")
+  }
+
+  async function copiarEscalaPronta() {
+    if (!escalaDestinoCopiaId || !escalaOrigemCopiaId) {
+      alert("Selecione a escala de origem e a escala de destino.")
+      return
+    }
+
+    if (escalaDestinoCopiaId === escalaOrigemCopiaId) {
+      alert("A escala de origem precisa ser diferente da escala de destino.")
+      return
+    }
+
+    const escalaOrigem = escalas.find((item) => item.id === escalaOrigemCopiaId)
+    const escalaDestino = escalas.find((item) => item.id === escalaDestinoCopiaId)
+
+    if (!escalaOrigem || !escalaDestino) {
+      alert("Não foi possível localizar uma das escalas selecionadas.")
+      return
+    }
+
+    const fixosOrigem = escalaFixos.filter((item) => item.escala_id === escalaOrigemCopiaId)
+    const freelancersOrigem = escalaFreelancers.filter((item) => item.escala_id === escalaOrigemCopiaId)
+    const fixosDestino = escalaFixos.filter((item) => item.escala_id === escalaDestinoCopiaId)
+    const freelancersDestino = escalaFreelancers.filter((item) => item.escala_id === escalaDestinoCopiaId)
+    const destinoJaTemPessoas = fixosDestino.length > 0 || freelancersDestino.length > 0
+
+    const confirmar = window.confirm(
+      destinoJaTemPessoas
+        ? `A escala de ${formatDateToBR(escalaDestino.data)} já possui ${fixosDestino.length + freelancersDestino.length} pessoa(s) selecionada(s). Deseja substituir por uma cópia da escala de ${formatDateToBR(escalaOrigem.data)}?`
+        : `Deseja copiar a escala de ${formatDateToBR(escalaOrigem.data)} para ${formatDateToBR(escalaDestino.data)}?`
+    )
+
+    if (!confirmar) return
+
+    try {
+      setCopiandoEscala(true)
+      setErro("")
+      setSucesso("")
+
+      const { error: deleteFixosError } = await supabase
+        .from("escala_fixos")
+        .delete()
+        .eq("escala_id", escalaDestinoCopiaId)
+        .eq("empresa_id", EMPRESA_ID)
+
+      if (deleteFixosError) throw deleteFixosError
+
+      const { error: deleteFreelancersError } = await supabase
+        .from("escala_freelancers")
+        .delete()
+        .eq("escala_id", escalaDestinoCopiaId)
+        .eq("empresa_id", EMPRESA_ID)
+
+      if (deleteFreelancersError) throw deleteFreelancersError
+
+      const novosFixos = fixosOrigem.map((item) => ({
+        escala_id: escalaDestinoCopiaId,
+        empresa_id: EMPRESA_ID,
+        fixo_id: item.fixo_id,
+        cargo_id: item.cargo_id || null,
+        horario_entrada: item.horario_entrada || null,
+        horario_inicio_intervalo: item.horario_inicio_intervalo || null,
+        horario_fim_intervalo: item.horario_fim_intervalo || null,
+        horario_saida: item.horario_saida || null,
+        praca_id: item.praca_id || null,
+      }))
+
+      const novosFreelancers = freelancersOrigem.map((item) => ({
+        escala_id: escalaDestinoCopiaId,
+        empresa_id: EMPRESA_ID,
+        freelancer_id: item.freelancer_id,
+        cargo_id: item.cargo_id || null,
+        horario_entrada: item.horario_entrada || null,
+        horario_inicio_intervalo: item.horario_inicio_intervalo || null,
+        horario_fim_intervalo: item.horario_fim_intervalo || null,
+        horario_saida: item.horario_saida || null,
+        praca_id: item.praca_id || null,
+      }))
+
+      if (novosFixos.length > 0) {
+        const { error: insertFixosError } = await supabase
+          .from("escala_fixos")
+          .insert(novosFixos)
+
+        if (insertFixosError) throw insertFixosError
+      }
+
+      if (novosFreelancers.length > 0) {
+        const { error: insertFreelancersError } = await supabase
+          .from("escala_freelancers")
+          .insert(novosFreelancers)
+
+        if (insertFreelancersError) throw insertFreelancersError
+      }
+
+      setSucesso(
+        `Escala copiada com sucesso. Fixos copiados: ${novosFixos.length}. Freelancers copiados: ${novosFreelancers.length}.`
+      )
+
+      setMostrarCopiarEscala(false)
+      setEscalaSelecionadaId(escalaDestinoCopiaId)
+      setEscalaDestinoCopiaId("")
+      setEscalaOrigemCopiaId("")
+      await carregarDados()
+    } catch (error: any) {
+      console.error(error)
+      setErro(error?.message || "Erro ao copiar escala.")
+      alert("Erro ao copiar escala.")
+    } finally {
+      setCopiandoEscala(false)
+    }
+  }
+
   async function alterarCenarioDaEscala(
     escalaId: string,
     cenarioAtualId: string,
@@ -513,6 +670,7 @@ export default function EscalasPage() {
       .from("escala_fixos")
       .delete()
       .eq("escala_id", escalaId)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (deleteFixosError) {
       console.error(deleteFixosError)
@@ -524,6 +682,7 @@ export default function EscalasPage() {
       .from("escala_freelancers")
       .delete()
       .eq("escala_id", escalaId)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (deleteFreelancersError) {
       console.error(deleteFreelancersError)
@@ -535,6 +694,7 @@ export default function EscalasPage() {
       .from("escalas")
       .update({ cenario_id: novoCenarioId })
       .eq("id", escalaId)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (updateError) {
       console.error(updateError)
@@ -621,6 +781,7 @@ export default function EscalasPage() {
       .from("escala_fixos")
       .delete()
       .eq("id", id)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (error) {
       console.error(error)
@@ -680,6 +841,7 @@ export default function EscalasPage() {
       .from("escala_freelancers")
       .delete()
       .eq("id", id)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (error) {
       console.error(error)
@@ -729,6 +891,7 @@ export default function EscalasPage() {
         .insert([
           {
             escala_id: modalHorario.escalaId,
+            empresa_id: EMPRESA_ID,
             fixo_id: modalHorario.pessoaId,
             cargo_id: modalHorario.cargoId,
             horario_entrada: horarioEntrada,
@@ -785,6 +948,7 @@ export default function EscalasPage() {
         .insert([
           {
             escala_id: modalHorario.escalaId,
+            empresa_id: EMPRESA_ID,
             freelancer_id: modalHorario.pessoaId,
             cargo_id: modalHorario.cargoId,
             horario_entrada: horarioEntrada,
@@ -882,7 +1046,7 @@ export default function EscalasPage() {
               padding-bottom: 24px;
               border-bottom: 1px solid #e2e8f0;
             }
- 
+
             .relatorio-data {
               margin-top: 24px;
               margin-bottom: 0;
@@ -891,7 +1055,7 @@ export default function EscalasPage() {
               line-height: 1.1;
               font-weight: 800;
             }
- 
+
             .relatorio-dia {
               margin-top: 8px;
               margin-bottom: 0;
@@ -899,7 +1063,7 @@ export default function EscalasPage() {
               font-size: 28px;
               font-weight: 700;
             }
- 
+
             .relatorio-cenario {
               margin-top: 12px;
               margin-bottom: 0;
@@ -907,7 +1071,7 @@ export default function EscalasPage() {
               font-size: 16px;
               font-weight: 600;
             }
- 
+
             table {
               width: 100%;
               border-collapse: collapse;
@@ -1280,6 +1444,17 @@ export default function EscalasPage() {
                               className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-100"
                             >
                               Gerar relatório
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                abrirModalCopiarEscala(escala.id)
+                              }}
+                              className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                            >
+                              Copiar escala
                             </button>
  
                             <select
@@ -1683,6 +1858,100 @@ export default function EscalasPage() {
         </div>
       ) : null}
  
+      {mostrarCopiarEscala ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-[#1E5AA8]">Copiar escala pronta</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Escolha uma escala existente para copiar funcionários, horários, intervalos e praças para a escala selecionada.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharModalCopiarEscala}
+                disabled={copiandoEscala}
+                className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-800">Escala de destino</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">
+                  {formatDateToBR(escalas.find((item) => item.id === escalaDestinoCopiaId)?.data || "")}
+                </p>
+                <p className="text-sm font-medium text-slate-600">
+                  {formatWeekdayOnly(escalas.find((item) => item.id === escalaDestinoCopiaId)?.data || "")}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Copiar dados da escala
+                </label>
+
+                {escalas.filter((item) => item.id !== escalaDestinoCopiaId).length === 0 ? (
+                  <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-medium text-yellow-800">
+                    É necessário existir ao menos outra escala cadastrada para usar a cópia.
+                  </div>
+                ) : (
+                  <select
+                    value={escalaOrigemCopiaId}
+                    onChange={(e) => setEscalaOrigemCopiaId(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400"
+                  >
+                    {escalas
+                      .filter((item) => item.id !== escalaDestinoCopiaId)
+                      .map((escala) => (
+                        <option key={escala.id} value={escala.id}>
+                          {formatDateToBR(escala.data)} - {formatWeekdayOnly(escala.data)} - Cenário {escala.cenarios?.numero ?? "-"} - {quantidadePessoasNaEscala(escala.id)} pessoa(s)
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">O que será copiado</p>
+                <p className="mt-1">✓ Funcionários fixos</p>
+                <p>✓ Freelancers</p>
+                <p>✓ Horários de entrada e saída</p>
+                <p>✓ Intervalos</p>
+                <p>✓ Praças dos garçons</p>
+                <p className="mt-3 font-medium text-red-700">
+                  Se a escala de destino já tiver pessoas selecionadas, elas serão substituídas.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={fecharModalCopiarEscala}
+                  disabled={copiandoEscala}
+                  className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={copiarEscalaPronta}
+                  disabled={copiandoEscala || !escalaOrigemCopiaId}
+                  className="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {copiandoEscala ? "Copiando..." : "Copiar escala"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {mostrarRelatorio && escalaSelecionada ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl bg-white shadow-xl">
@@ -1736,20 +2005,20 @@ export default function EscalasPage() {
                   <h1 className="text-4xl font-extrabold text-[#1E5AA8]">
                     Relatório da escala
                   </h1>
- 
+
                   <p className="relatorio-data mt-6 text-5xl font-extrabold leading-tight text-slate-900">
                     {formatDateToBR(escalaSelecionada.data)}
                   </p>
- 
+
                   <p className="relatorio-dia mt-2 text-3xl font-bold text-slate-600">
                     {formatWeekdayOnly(escalaSelecionada.data)}
                   </p>
- 
+
                   <p className="relatorio-cenario mt-3 text-lg font-semibold text-slate-500">
                     Cenário {escalaSelecionada.cenarios?.numero ?? "-"}
                   </p>
                 </div>
- 
+
                 {relatorioDaEscala.length === 0 ? (
                   <p className="text-slate-600">Nenhum funcionário encontrado para esta escala.</p>
                 ) : (
@@ -1813,3 +2082,5 @@ function ResumoCard({
   )
 }
  
+
+

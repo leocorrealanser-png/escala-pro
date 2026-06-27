@@ -3,25 +3,39 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../../lib/supabase"
 
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+
 type Cargo = {
   id: string
   nome: string
+  empresa_id?: string | null
 }
 
 export default function CargosPage() {
   const [nome, setNome] = useState("")
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [loading, setLoading] = useState(false)
+  const [carregando, setCarregando] = useState(true)
 
   async function carregarCargos() {
+    setCarregando(true)
+
     const { data, error } = await supabase
       .from("cargos")
-      .select("*")
+      .select("id, nome, empresa_id")
+      .eq("empresa_id", EMPRESA_ID)
       .order("nome", { ascending: true })
 
     if (!error && data) {
-      setCargos(data)
+      setCargos(data as Cargo[])
     }
+
+    if (error) {
+      console.error(error)
+      alert("Erro ao carregar cargos.")
+    }
+
+    setCarregando(false)
   }
 
   useEffect(() => {
@@ -30,11 +44,18 @@ export default function CargosPage() {
 
   async function cadastrarCargo(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!nome.trim()) {
+      alert("Informe o nome do cargo.")
+      return
+    }
+
     setLoading(true)
 
     const { error } = await supabase.from("cargos").insert([
       {
-        nome,
+        nome: nome.trim(),
+        empresa_id: EMPRESA_ID,
       },
     ])
 
@@ -42,6 +63,7 @@ export default function CargosPage() {
       setNome("")
       await carregarCargos()
     } else {
+      console.error(error)
       alert("Erro ao cadastrar cargo.")
     }
 
@@ -49,11 +71,20 @@ export default function CargosPage() {
   }
 
   async function excluirCargo(id: string) {
-    const { error } = await supabase.from("cargos").delete().eq("id", id)
+    const confirmar = window.confirm("Deseja realmente excluir este cargo?")
+
+    if (!confirmar) return
+
+    const { error } = await supabase
+      .from("cargos")
+      .delete()
+      .eq("id", id)
+      .eq("empresa_id", EMPRESA_ID)
 
     if (!error) {
       await carregarCargos()
     } else {
+      console.error(error)
       alert("Erro ao excluir cargo.")
     }
   }
@@ -92,7 +123,9 @@ export default function CargosPage() {
           Lista de cargos
         </h2>
 
-        {cargos.length > 0 ? (
+        {carregando ? (
+          <p className="text-gray-700">Carregando cargos...</p>
+        ) : cargos.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse">
               <thead>
@@ -131,3 +164,4 @@ export default function CargosPage() {
     </div>
   )
 }
+

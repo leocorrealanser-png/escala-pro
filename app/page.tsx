@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
 
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+
 type Escala = {
   id: string
   data: string
@@ -136,12 +138,14 @@ export default function DashboardPage() {
         supabase
           .from("fixos")
           .select("id", { count: "exact", head: true })
-          .eq("ativo", true),
+          .eq("ativo", true)
+          .eq("empresa_id", EMPRESA_ID),
 
         supabase
           .from("freelancers")
           .select("id", { count: "exact", head: true })
-          .eq("ativo", true),
+          .eq("ativo", true)
+          .eq("empresa_id", EMPRESA_ID),
 
         supabase
           .from("candidatos")
@@ -149,7 +153,8 @@ export default function DashboardPage() {
 
         supabase
           .from("escalas")
-          .select("id", { count: "exact", head: true }),
+          .select("id", { count: "exact", head: true })
+          .eq("empresa_id", EMPRESA_ID),
 
         supabase
           .from("escalas")
@@ -165,6 +170,7 @@ export default function DashboardPage() {
               total_pessoas
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .gte("data", hojeISO)
           .lte("data", fimSemanaISO)
           .order("data", { ascending: true }),
@@ -183,24 +189,28 @@ export default function DashboardPage() {
               total_pessoas
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .eq("data", hojeISO)
           .order("data", { ascending: true }),
 
         supabase
           .from("ausencias_fixos")
           .select("id, fixo_id, data_inicio, data_fim")
+          .eq("empresa_id", EMPRESA_ID)
           .lte("data_inicio", hojeISO)
           .gte("data_fim", hojeISO),
 
         supabase
           .from("ausencias_fixos")
           .select("id, fixo_id, data_inicio, data_fim")
+          .eq("empresa_id", EMPRESA_ID)
           .lte("data_inicio", fimSemanaISO)
           .gte("data_fim", hojeISO),
 
         supabase
           .from("escala_freelancers")
-          .select("id, escala_id, freelancer_id"),
+          .select("id, escala_id, freelancer_id")
+          .eq("empresa_id", EMPRESA_ID),
       ])
 
       if (fixosResponse.error) throw fixosResponse.error
@@ -270,6 +280,7 @@ export default function DashboardPage() {
             total_pessoas
           )
         `)
+        .eq("empresa_id", EMPRESA_ID)
         .gte("data", dataInicio)
         .lte("data", dataFim)
         .order("data", { ascending: true })
@@ -282,6 +293,7 @@ export default function DashboardPage() {
         const { data: ausenciasData, error: ausenciasError } = await supabase
           .from("ausencias_fixos")
           .select("id, fixo_id, data_inicio, data_fim")
+          .eq("empresa_id", EMPRESA_ID)
           .lte("data_inicio", dataFim)
           .gte("data_fim", dataInicio)
 
@@ -308,6 +320,7 @@ export default function DashboardPage() {
         const { data: freelancersData, error: freelancersError } = await supabase
           .from("escala_freelancers")
           .select("id")
+          .eq("empresa_id", EMPRESA_ID)
           .eq("escala_id", escala.id)
 
         if (freelancersError) throw freelancersError
@@ -827,6 +840,8 @@ function InfoBox({
     <div className={`rounded-2xl border p-4 ${classes}`}>
       <p className={`text-sm font-medium ${tituloClasse}`}>{titulo}</p>
       <p className="mt-1 text-2xl font-bold">{valor}</p>
-    </div>
+   </div>
   )
 }
+
+

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
  
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+ 
 type FixoCargo = {
   cargo_id: string
   cargos: {
@@ -15,12 +17,14 @@ type Fixo = {
   nome: string
   telefone: string | null
   ativo: boolean | null
+  empresa_id?: string | null
   fixo_cargos?: FixoCargo[]
 }
  
 type Cargo = {
   id: string
   nome: string
+  empresa_id?: string | null
 }
  
 export default function FixosPage() {
@@ -51,16 +55,19 @@ export default function FixosPage() {
         nome,
         telefone,
         ativo,
+        empresa_id,
         fixo_cargos (
           cargo_id,
           cargos ( nome )
         )
       `)
+      .eq("empresa_id", EMPRESA_ID)
       .order("nome")
  
     const { data: cargosData, error: cargosError } = await supabase
       .from("cargos")
-      .select("id,nome")
+      .select("id,nome,empresa_id")
+      .eq("empresa_id", EMPRESA_ID)
       .order("nome")
  
     if (fixosError) {
@@ -112,6 +119,7 @@ export default function FixosPage() {
           nome: nome.trim(),
           telefone: telefone.trim() || null,
           ativo: true,
+          empresa_id: EMPRESA_ID,
         },
       ])
       .select("id")
@@ -189,6 +197,7 @@ export default function FixosPage() {
         telefone: telefoneEdicao.trim() || null,
       })
       .eq("id", fixoEditando.id)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (updateError) {
       console.error(updateError)
@@ -240,7 +249,11 @@ export default function FixosPage() {
     const confirmar = window.confirm("Deseja remover este fixo?")
     if (!confirmar) return
  
-    const { error } = await supabase.from("fixos").delete().eq("id", id)
+    const { error } = await supabase
+      .from("fixos")
+      .delete()
+      .eq("id", id)
+      .eq("empresa_id", EMPRESA_ID)
  
     if (error) {
       console.error(error)

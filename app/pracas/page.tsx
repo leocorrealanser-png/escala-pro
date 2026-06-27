@@ -1,8 +1,10 @@
 "use client"
-
+ 
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
-
+ 
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+ 
 type Escala = {
   id: string
   data: string
@@ -24,19 +26,19 @@ type Escala = {
       }[]
     | null
 }
-
+ 
 type Ausencia = {
   id: string
   fixo_id?: string | null
   data: string
 }
-
+ 
 type EscalaFreelancer = {
   id: string
   escala_id: string
   freelancer_id?: string | null
 }
-
+ 
 type RelatorioItem = {
   id: string
   data: string
@@ -45,30 +47,30 @@ type RelatorioItem = {
   freelancersEscalados: number
   freelancersFaltando: number
 }
-
+ 
 function formatDateToISO(date: Date) {
   const year = date.getFullYear()
   const month = `${date.getMonth() + 1}`.padStart(2, "0")
   const day = `${date.getDate()}`.padStart(2, "0")
   return `${year}-${month}-${day}`
 }
-
+ 
 function formatDateToBR(dateString: string) {
   if (!dateString) return "—"
-
+ 
   const [year, month, day] = dateString.split("-")
   return `${day}/${month}/${year}`
 }
-
+ 
 function formatCurrency(value: number | null | undefined) {
   if (value == null) return "—"
-
+ 
   return Number(value).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   })
 }
-
+ 
 function getCenario(
   cenarios: Escala["cenarios"] | undefined | null
 ): {
@@ -81,16 +83,16 @@ function getCenario(
   if (!cenarios) return null
   return Array.isArray(cenarios) ? cenarios[0] ?? null : cenarios
 }
-
+ 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState("")
-
+ 
   const [fixosAtivos, setFixosAtivos] = useState(0)
   const [freelancersAtivos, setFreelancersAtivos] = useState(0)
   const [candidatosTotal, setCandidatosTotal] = useState(0)
   const [escalasTotal, setEscalasTotal] = useState(0)
-
+ 
   const [escalaFreelancers, setEscalaFreelancers] = useState<
     EscalaFreelancer[]
   >([])
@@ -98,25 +100,25 @@ export default function DashboardPage() {
   const [escalasHoje, setEscalasHoje] = useState<Escala[]>([])
   const [ausenciasHoje, setAusenciasHoje] = useState<Ausencia[]>([])
   const [ausenciasSemana, setAusenciasSemana] = useState<Ausencia[]>([])
-
+ 
   const [dataInicio, setDataInicio] = useState("")
   const [dataFim, setDataFim] = useState("")
   const [relatorio, setRelatorio] = useState<RelatorioItem[]>([])
   const [carregandoRelatorio, setCarregandoRelatorio] = useState(false)
   const [erroRelatorio, setErroRelatorio] = useState("")
-
+ 
   async function carregarDados(mostrarLoading = false) {
     try {
       if (mostrarLoading) setLoading(true)
       setErro("")
-
+ 
       const hoje = new Date()
       const hojeISO = formatDateToISO(hoje)
-
+ 
       const fimSemana = new Date()
       fimSemana.setDate(hoje.getDate() + 7)
       const fimSemanaISO = formatDateToISO(fimSemana)
-
+ 
       const [
         fixosResponse,
         freelancersResponse,
@@ -131,21 +133,25 @@ export default function DashboardPage() {
         supabase
           .from("fixos")
           .select("id", { count: "exact", head: true })
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true),
-
+ 
         supabase
           .from("freelancers")
           .select("id", { count: "exact", head: true })
+          .eq("empresa_id", EMPRESA_ID)
           .eq("ativo", true),
-
+ 
         supabase
           .from("candidatos")
-          .select("id", { count: "exact", head: true }),
-
+          .select("id", { count: "exact", head: true })
+          .eq("empresa_id", EMPRESA_ID),
+ 
         supabase
           .from("escalas")
-          .select("id", { count: "exact", head: true }),
-
+          .select("id", { count: "exact", head: true })
+          .eq("empresa_id", EMPRESA_ID),
+ 
         supabase
           .from("escalas")
           .select(`
@@ -160,10 +166,11 @@ export default function DashboardPage() {
               total_pessoas
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .gte("data", hojeISO)
           .lte("data", fimSemanaISO)
           .order("data", { ascending: true }),
-
+ 
         supabase
           .from("escalas")
           .select(`
@@ -178,25 +185,29 @@ export default function DashboardPage() {
               total_pessoas
             )
           `)
+          .eq("empresa_id", EMPRESA_ID)
           .eq("data", hojeISO)
           .order("data", { ascending: true }),
-
+ 
         supabase
           .from("ausencias_fixos")
           .select("id, fixo_id, data")
+          .eq("empresa_id", EMPRESA_ID)
           .eq("data", hojeISO),
-
+ 
         supabase
           .from("ausencias_fixos")
           .select("id, fixo_id, data")
+          .eq("empresa_id", EMPRESA_ID)
           .gte("data", hojeISO)
           .lte("data", fimSemanaISO),
-
+ 
         supabase
           .from("escala_freelancers")
-          .select("id, escala_id, freelancer_id"),
+          .select("id, escala_id, freelancer_id")
+          .eq("empresa_id", EMPRESA_ID),
       ])
-
+ 
       if (fixosResponse.error) throw fixosResponse.error
       if (freelancersResponse.error) throw freelancersResponse.error
       if (candidatosResponse.error) throw candidatosResponse.error
@@ -206,12 +217,12 @@ export default function DashboardPage() {
       if (ausenciasHojeResponse.error) throw ausenciasHojeResponse.error
       if (ausenciasSemanaResponse.error) throw ausenciasSemanaResponse.error
       if (escalaFreelancersResponse.error) throw escalaFreelancersResponse.error
-
+ 
       setFixosAtivos(fixosResponse.count || 0)
       setFreelancersAtivos(freelancersResponse.count || 0)
       setCandidatosTotal(candidatosResponse.count || 0)
       setEscalasTotal(escalasCountResponse.count || 0)
-
+ 
       setEscalasSemana(
         (escalasSemanaResponse.data || []) as unknown as Escala[]
       )
@@ -232,23 +243,23 @@ export default function DashboardPage() {
       if (mostrarLoading) setLoading(false)
     }
   }
-
+ 
   async function gerarRelatorio() {
     if (!dataInicio || !dataFim) {
       setErroRelatorio("Selecione a data inicial e a data final.")
       setRelatorio([])
       return
     }
-
+ 
     if (dataFim < dataInicio) {
       setErroRelatorio("A data final não pode ser menor que a data inicial.")
       setRelatorio([])
       return
     }
-
+ 
     setCarregandoRelatorio(true)
     setErroRelatorio("")
-
+ 
     try {
       const { data: escalasPeriodo, error } = await supabase
         .from("escalas")
@@ -264,53 +275,55 @@ export default function DashboardPage() {
             total_pessoas
           )
         `)
+        .eq("empresa_id", EMPRESA_ID)
         .gte("data", dataInicio)
         .lte("data", dataFim)
         .order("data", { ascending: true })
-
+ 
       if (error) throw error
-
+ 
       const datasUnicas = Array.from(
         new Set((escalasPeriodo || []).map((escala: any) => escala.data))
       )
-
+ 
       let ausenciasPeriodo: Ausencia[] = []
-
+ 
       if (datasUnicas.length > 0) {
         const { data: ausenciasData, error: ausenciasError } = await supabase
           .from("ausencias_fixos")
           .select("id, fixo_id, data")
+          .eq("empresa_id", EMPRESA_ID)
           .gte("data", dataInicio)
           .lte("data", dataFim)
-
+ 
         if (ausenciasError) throw ausenciasError
-
+ 
         ausenciasPeriodo = (ausenciasData || []) as Ausencia[]
       }
-
+ 
       const resultado: RelatorioItem[] = (escalasPeriodo || []).map(
         (escala: any) => {
           const cenario = Array.isArray(escala.cenarios)
             ? escala.cenarios[0]
             : escala.cenarios
-
+ 
           const totalPessoas = Number(cenario?.total_pessoas || 0)
-
+ 
           const ausenciasDia = ausenciasPeriodo.filter(
             (ausencia) => ausencia.data === escala.data
           ).length
-
+ 
           const fixosDisponiveis = Math.max(fixosAtivos - ausenciasDia, 0)
-
+ 
           const freelancersEscalados = escalaFreelancers.filter(
             (f) => f.escala_id === escala.id
           ).length
-
+ 
           const freelancersFaltando = Math.max(
             totalPessoas - fixosDisponiveis - freelancersEscalados,
             0
           )
-
+ 
           return {
             id: escala.id,
             data: escala.data,
@@ -321,7 +334,7 @@ export default function DashboardPage() {
           }
         }
       )
-
+ 
       setRelatorio(resultado)
     } catch (error: any) {
       console.error(error)
@@ -331,19 +344,19 @@ export default function DashboardPage() {
       setCarregandoRelatorio(false)
     }
   }
-
+ 
   useEffect(() => {
     let timeout: NodeJS.Timeout
-
+ 
     carregarDados(true)
-
+ 
     const atualizarComDelay = () => {
       clearTimeout(timeout)
       timeout = setTimeout(() => {
         carregarDados(false)
       }, 250)
     }
-
+ 
     const channel = supabase
       .channel("dashboard-realtime")
       .on(
@@ -362,24 +375,24 @@ export default function DashboardPage() {
         atualizarComDelay
       )
       .subscribe()
-
+ 
     return () => {
       clearTimeout(timeout)
       supabase.removeChannel(channel)
     }
   }, [])
-
+ 
   const totalPessoasHoje = useMemo(() => {
     return escalasHoje.reduce((acc, escala) => {
       const cenario = getCenario(escala.cenarios)
       return acc + Number(cenario?.total_pessoas || 0)
     }, 0)
   }, [escalasHoje])
-
+ 
   const fixosDisponiveisHoje = useMemo(() => {
     return Math.max(fixosAtivos - ausenciasHoje.length, 0)
   }, [fixosAtivos, ausenciasHoje])
-
+ 
   const freelancersNecessariosHoje = useMemo(() => {
     const freelancersSelecionadosHoje = escalasHoje.reduce((acc, escala) => {
       return (
@@ -387,33 +400,33 @@ export default function DashboardPage() {
         escalaFreelancers.filter((f) => f.escala_id === escala.id).length
       )
     }, 0)
-
+ 
     return Math.max(
       totalPessoasHoje - fixosDisponiveisHoje - freelancersSelecionadosHoje,
       0
     )
   }, [totalPessoasHoje, fixosDisponiveisHoje, escalasHoje, escalaFreelancers])
-
+ 
   const escalasSemanaComResumo = useMemo(() => {
     return escalasSemana.map((escala) => {
       const cenario = getCenario(escala.cenarios)
       const totalPessoas = Number(cenario?.total_pessoas || 0)
-
+ 
       const ausenciasDaEscala = ausenciasSemana.filter(
         (ausencia) => ausencia.data === escala.data
       ).length
-
+ 
       const fixosDisponiveis = Math.max(fixosAtivos - ausenciasDaEscala, 0)
-
+ 
       const freelancersEscalados = escalaFreelancers.filter(
         (item) => item.escala_id === escala.id
       ).length
-
+ 
       const freelancersFaltando = Math.max(
         totalPessoas - fixosDisponiveis - freelancersEscalados,
         0
       )
-
+ 
       return {
         ...escala,
         cenario,
@@ -424,7 +437,7 @@ export default function DashboardPage() {
       }
     })
   }, [escalasSemana, ausenciasSemana, fixosAtivos, escalaFreelancers])
-
+ 
   if (loading) {
     return (
       <div className="space-y-8 p-6">
@@ -435,7 +448,7 @@ export default function DashboardPage() {
       </div>
     )
   }
-
+ 
   return (
     <div className="space-y-8 p-6 text-slate-800">
       <div>
@@ -444,18 +457,18 @@ export default function DashboardPage() {
           Visão geral da operação do restaurante.
         </p>
       </div>
-
+ 
       {erro ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {erro}
         </div>
       ) : null}
-
+ 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-bold text-[#1E5AA8]">
           Relatório por período
         </h2>
-
+ 
         <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-end">
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -468,7 +481,7 @@ export default function DashboardPage() {
               className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-slate-800 outline-none focus:border-[#1E5AA8]"
             />
           </div>
-
+ 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Data final
@@ -480,7 +493,7 @@ export default function DashboardPage() {
               className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-slate-800 outline-none focus:border-[#1E5AA8]"
             />
           </div>
-
+ 
           <button
             onClick={gerarRelatorio}
             className="rounded-xl bg-[#1E5AA8] px-5 py-2.5 font-medium text-white transition hover:opacity-90"
@@ -488,17 +501,17 @@ export default function DashboardPage() {
             Gerar relatório
           </button>
         </div>
-
+ 
         {erroRelatorio ? (
           <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {erroRelatorio}
           </div>
         ) : null}
-
+ 
         {carregandoRelatorio ? (
           <p className="mt-4 text-sm text-slate-600">Gerando relatório...</p>
         ) : null}
-
+ 
         {!carregandoRelatorio &&
         !erroRelatorio &&
         dataInicio &&
@@ -508,7 +521,7 @@ export default function DashboardPage() {
             Nenhuma escala encontrada no período selecionado.
           </p>
         ) : null}
-
+ 
         {relatorio.length > 0 ? (
           <div className="mt-6 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -548,20 +561,20 @@ export default function DashboardPage() {
           </div>
         ) : null}
       </div>
-
+ 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <DashboardCard titulo="Funcionários Fixos Ativos" valor={fixosAtivos} />
         <DashboardCard titulo="Freelancers Ativos" valor={freelancersAtivos} />
         <DashboardCard titulo="Escalas Criadas" valor={escalasTotal} />
         <DashboardCard titulo="Candidatos" valor={candidatosTotal} />
       </section>
-
+ 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-bold text-[#1E5AA8]">
             Operação de hoje
           </h2>
-
+ 
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             <InfoBox titulo="Escalas de hoje" valor={escalasHoje.length} />
             <InfoBox
@@ -578,7 +591,7 @@ export default function DashboardPage() {
               destaque="alerta"
             />
           </div>
-
+ 
           <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-medium text-slate-600">
               Ausências registradas hoje
@@ -588,12 +601,12 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-
+ 
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-bold text-[#1E5AA8]">
             Escalas da semana
           </h2>
-
+ 
           {escalasSemanaComResumo.length === 0 ? (
             <p className="mt-6 text-slate-600">
               Nenhuma escala criada para os próximos dias.
@@ -614,7 +627,7 @@ export default function DashboardPage() {
                         {formatDateToBR(escala.data)}
                       </p>
                     </div>
-
+ 
                     <div className="text-right">
                       <p className="text-sm font-medium text-slate-600">
                         Cenário
@@ -624,7 +637,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
-
+ 
                   <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-5">
                     <div>
                       <p className="text-sm font-medium text-slate-600">
@@ -637,7 +650,7 @@ export default function DashboardPage() {
                         )}
                       </p>
                     </div>
-
+ 
                     <div>
                       <p className="text-sm font-medium text-slate-600">
                         Total de pessoas
@@ -646,7 +659,7 @@ export default function DashboardPage() {
                         {escala.totalPessoas}
                       </p>
                     </div>
-
+ 
                     <div>
                       <p className="text-sm font-medium text-slate-600">
                         Fixos disponíveis
@@ -655,7 +668,7 @@ export default function DashboardPage() {
                         {escala.fixosDisponiveis}
                       </p>
                     </div>
-
+ 
                     <div>
                       <p className="text-sm font-medium text-slate-600">
                         Freelancers escalados
@@ -664,7 +677,7 @@ export default function DashboardPage() {
                         {escala.freelancersEscalados}
                       </p>
                     </div>
-
+ 
                     <div>
                       <p className="text-sm font-medium text-red-700">
                         Freelancers faltando
@@ -683,7 +696,7 @@ export default function DashboardPage() {
     </div>
   )
 }
-
+ 
 function DashboardCard({
   titulo,
   valor,
@@ -698,7 +711,7 @@ function DashboardCard({
     </div>
   )
 }
-
+ 
 function InfoBox({
   titulo,
   valor,
@@ -712,10 +725,10 @@ function InfoBox({
     destaque === "alerta"
       ? "border-red-200 bg-red-50 text-red-600"
       : "border-slate-200 bg-slate-50 text-slate-900"
-
+ 
   const tituloClasse =
     destaque === "alerta" ? "text-red-700" : "text-slate-600"
-
+ 
   return (
     <div className={`rounded-2xl border p-4 ${classes}`}>
       <p className={`text-sm font-medium ${tituloClasse}`}>{titulo}</p>

@@ -1,8 +1,10 @@
 "use client"
-
+ 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-
+ 
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+ 
 type FreelancerCargo = {
   cargo_id: string
   cargos?: {
@@ -10,7 +12,7 @@ type FreelancerCargo = {
     nome: string
   } | null
 }
-
+ 
 type Freelancer = {
   id: string
   nome: string
@@ -18,32 +20,32 @@ type Freelancer = {
   ativo: boolean | null
   freelancer_cargos?: FreelancerCargo[]
 }
-
+ 
 type Cargo = {
   id: string
   nome: string
 }
-
+ 
 export default function FreelancersPage() {
   const [freelancers, setFreelancers] = useState<Freelancer[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
-
+ 
   const [nome, setNome] = useState("")
   const [telefone, setTelefone] = useState("")
   const [cargosSelecionados, setCargosSelecionados] = useState<string[]>([])
-
+ 
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [cargosEditando, setCargosEditando] = useState<string[]>([])
-
+ 
   useEffect(() => {
     carregarDados()
   }, [])
-
+ 
   async function carregarDados() {
     setLoading(true)
-
+ 
     const { data: freelancersData, error: freelancersError } = await supabase
       .from("freelancers")
       .select(`
@@ -59,32 +61,34 @@ export default function FreelancersPage() {
           )
         )
       `)
+      .eq("empresa_id", EMPRESA_ID)
       .order("nome")
-
+ 
     const { data: cargosData, error: cargosError } = await supabase
       .from("cargos")
       .select("id,nome")
+      .eq("empresa_id", EMPRESA_ID)
       .order("nome")
-
+ 
     if (freelancersError) {
       console.error(freelancersError)
       alert("Erro ao carregar freelancers")
       setLoading(false)
       return
     }
-
+ 
     if (cargosError) {
       console.error(cargosError)
       alert("Erro ao carregar cargos")
       setLoading(false)
       return
     }
-
+ 
     setFreelancers((freelancersData || []) as unknown as Freelancer[])
     setCargos((cargosData || []) as Cargo[])
     setLoading(false)
   }
-
+ 
   function alternarCargo(cargoId: string) {
     setCargosSelecionados((prev) =>
       prev.includes(cargoId)
@@ -92,7 +96,7 @@ export default function FreelancersPage() {
         : [...prev, cargoId]
     )
   }
-
+ 
   function alternarCargoEditando(cargoId: string) {
     setCargosEditando((prev) =>
       prev.includes(cargoId)
@@ -100,20 +104,20 @@ export default function FreelancersPage() {
         : [...prev, cargoId]
     )
   }
-
+ 
   async function adicionarFreelancer() {
     if (!nome.trim()) {
       alert("Informe o nome")
       return
     }
-
+ 
     if (cargosSelecionados.length === 0) {
       alert("Selecione pelo menos um cargo")
       return
     }
-
+ 
     setSalvando(true)
-
+ 
     const { data: freelancerInserido, error: freelancerError } = await supabase
       .from("freelancers")
       .insert([
@@ -121,125 +125,126 @@ export default function FreelancersPage() {
           nome: nome.trim(),
           telefone: telefone.trim() || null,
           ativo: true,
+          empresa_id: EMPRESA_ID,
         },
       ])
       .select("id")
       .single()
-
+ 
     if (freelancerError || !freelancerInserido) {
       console.error(freelancerError)
       alert("Erro ao adicionar freelancer")
       setSalvando(false)
       return
     }
-
+ 
     const relacoes = cargosSelecionados.map((cargoId) => ({
       freelancer_id: freelancerInserido.id,
       cargo_id: cargoId,
     }))
-
+ 
     const { error: cargosRelacaoError } = await supabase
       .from("freelancer_cargos")
       .insert(relacoes)
-
+ 
     if (cargosRelacaoError) {
       console.error(cargosRelacaoError)
       alert("Freelancer criado, mas houve erro ao salvar os cargos")
       setSalvando(false)
       return
     }
-
+ 
     setNome("")
     setTelefone("")
     setCargosSelecionados([])
     await carregarDados()
     setSalvando(false)
   }
-
+ 
   async function removerFreelancer(id: string) {
     const confirmar = window.confirm("Deseja remover este freelancer?")
-
+ 
     if (!confirmar) return
-
+ 
     const { error } = await supabase
       .from("freelancers")
       .delete()
       .eq("id", id)
-
+ 
     if (error) {
       console.error(error)
       alert("Erro ao remover freelancer")
       return
     }
-
+ 
     await carregarDados()
   }
-
+ 
   function iniciarEdicao(freelancer: Freelancer) {
     setEditandoId(freelancer.id)
-
+ 
     const cargosAtuais =
       freelancer.freelancer_cargos?.map((rel) => rel.cargo_id) || []
-
+ 
     setCargosEditando(cargosAtuais)
   }
-
+ 
   function cancelarEdicao() {
     setEditandoId(null)
     setCargosEditando([])
   }
-
+ 
   async function salvarEdicao(freelancerId: string) {
     if (cargosEditando.length === 0) {
       alert("Selecione pelo menos um cargo")
       return
     }
-
+ 
     setSalvando(true)
-
+ 
     const { error: removerError } = await supabase
       .from("freelancer_cargos")
       .delete()
       .eq("freelancer_id", freelancerId)
-
+ 
     if (removerError) {
       console.error(removerError)
       alert("Erro ao atualizar os cargos do freelancer")
       setSalvando(false)
       return
     }
-
+ 
     const novasRelacoes = cargosEditando.map((cargoId) => ({
       freelancer_id: freelancerId,
       cargo_id: cargoId,
     }))
-
+ 
     const { error: inserirError } = await supabase
       .from("freelancer_cargos")
       .insert(novasRelacoes)
-
+ 
     if (inserirError) {
       console.error(inserirError)
       alert("Erro ao salvar os novos cargos")
       setSalvando(false)
       return
     }
-
+ 
     setEditandoId(null)
     setCargosEditando([])
     await carregarDados()
     setSalvando(false)
   }
-
+ 
   return (
     <div className="space-y-8 p-6">
       <h1 className="text-4xl font-bold text-[#1E5AA8]">Freelancers</h1>
-
+ 
       <section className="rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-bold text-[#1E5AA8]">
           Adicionar freelancer
         </h2>
-
+ 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <input
             placeholder="Nome"
@@ -247,7 +252,7 @@ export default function FreelancersPage() {
             onChange={(e) => setNome(e.target.value)}
             className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-500"
           />
-
+ 
           <input
             placeholder="Telefone"
             value={telefone}
@@ -255,19 +260,19 @@ export default function FreelancersPage() {
             className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-500"
           />
         </div>
-
+ 
         <div className="mt-6">
           <p className="mb-3 text-sm font-semibold text-gray-700">
             Cargos que o freelancer pode exercer
           </p>
-
+ 
           {cargos.length === 0 ? (
             <p className="text-sm text-gray-500">Nenhum cargo cadastrado.</p>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               {cargos.map((cargo) => {
                 const selecionado = cargosSelecionados.includes(cargo.id)
-
+ 
                 return (
                   <label
                     key={cargo.id}
@@ -292,7 +297,7 @@ export default function FreelancersPage() {
             </div>
           )}
         </div>
-
+ 
         <button
           onClick={adicionarFreelancer}
           disabled={salvando}
@@ -301,12 +306,12 @@ export default function FreelancersPage() {
           {salvando ? "Salvando..." : "Adicionar freelancer"}
         </button>
       </section>
-
+ 
       <section className="rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-bold text-[#1E5AA8]">
           Freelancers cadastrados
         </h2>
-
+ 
         {loading ? (
           <p className="mt-4 text-gray-500">Carregando...</p>
         ) : freelancers.length === 0 ? (
@@ -319,9 +324,9 @@ export default function FreelancersPage() {
                   ?.map((rel) => rel.cargos?.nome)
                   .filter(Boolean)
                   .join(", ") || "Sem cargo"
-
+ 
               const editando = editandoId === freelancer.id
-
+ 
               return (
                 <div
                   key={freelancer.id}
@@ -332,18 +337,18 @@ export default function FreelancersPage() {
                       <p className="font-semibold text-gray-900">
                         {freelancer.nome}
                       </p>
-
+ 
                       <p className="text-sm text-gray-500">
                         {freelancer.telefone || "Sem telefone"}
                       </p>
-
+ 
                       {!editando && (
                         <p className="mt-1 text-sm text-gray-600">
                           {nomesCargos}
                         </p>
                       )}
                     </div>
-
+ 
                     {!editando && (
                       <div className="flex gap-2">
                         <button
@@ -352,7 +357,7 @@ export default function FreelancersPage() {
                         >
                           Editar
                         </button>
-
+ 
                         <button
                           onClick={() => removerFreelancer(freelancer.id)}
                           className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
@@ -362,17 +367,17 @@ export default function FreelancersPage() {
                       </div>
                     )}
                   </div>
-
+ 
                   {editando && (
                     <div className="mt-4">
                       <p className="mb-3 text-sm font-semibold text-gray-700">
                         Alterar cargos do freelancer
                       </p>
-
+ 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                         {cargos.map((cargo) => {
                           const selecionado = cargosEditando.includes(cargo.id)
-
+ 
                           return (
                             <label
                               key={cargo.id}
@@ -395,7 +400,7 @@ export default function FreelancersPage() {
                           )
                         })}
                       </div>
-
+ 
                       <div className="mt-4 flex gap-2">
                         <button
                           onClick={() => salvarEdicao(freelancer.id)}
@@ -404,7 +409,7 @@ export default function FreelancersPage() {
                         >
                           {salvando ? "Salvando..." : "Salvar"}
                         </button>
-
+ 
                         <button
                           onClick={cancelarEdicao}
                           disabled={salvando}

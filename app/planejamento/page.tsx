@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase"
 
+const EMPRESA_ID = "bc379c2c-f27e-403f-a65e-a3815b4ff39e"
+
 type Cenario = {
   id: string
   numero: number
@@ -91,6 +93,7 @@ export default function PlanejamentoPage() {
         {
           data: dataSelecionada,
           cenario_id: cenarioSelecionadoId,
+          empresa_id: EMPRESA_ID,
         },
       ])
 
@@ -118,19 +121,23 @@ export default function PlanejamentoPage() {
           supabase
             .from("cenarios")
             .select("id, numero, faturamento, faturamento_esperado, total_pessoas")
+            .eq("empresa_id", EMPRESA_ID)
             .order("numero", { ascending: true }),
 
           supabase
             .from("cenarios_cargos")
-            .select("id, cenario_id, cargo_id, quantidade, cargos(id, nome)"),
+            .select("id, cenario_id, cargo_id, quantidade, cargos(id, nome)")
+            .eq("empresa_id", EMPRESA_ID),
 
           supabase
             .from("fixos")
-            .select("id, cargo_id, cargos(id, nome)"),
+            .select("id, cargo_id, cargos(id, nome)")
+            .eq("empresa_id", EMPRESA_ID),
 
           supabase
             .from("ausencias_fixos")
-            .select("id, fixo_id, data_inicio, data_fim"),
+            .select("id, fixo_id, data_inicio, data_fim")
+            .eq("empresa_id", EMPRESA_ID),
         ])
 
         if (cenariosResponse.error) throw cenariosResponse.error
@@ -149,7 +156,17 @@ export default function PlanejamentoPage() {
         setAusencias((ausenciasResponse.data || []) as any)
 
         if (cenariosData.length > 0) {
-          setCenarioSelecionadoId(String(cenariosData[0].id))
+          setCenarioSelecionadoId((atual) => {
+            const cenarioAindaExiste = cenariosData.some(
+              (cenario) => String(cenario.id) === String(atual)
+            )
+
+            if (cenarioAindaExiste) return atual
+
+            return String(cenariosData[0].id)
+          })
+        } else {
+          setCenarioSelecionadoId("")
         }
       } catch (error: any) {
         console.error(error)
@@ -270,11 +287,15 @@ export default function PlanejamentoPage() {
               onChange={(e) => setCenarioSelecionadoId(e.target.value)}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
             >
-              {cenarios.map((cenario) => (
-                <option key={cenario.id} value={cenario.id}>
-                  Cenário {cenario.numero}
-                </option>
-              ))}
+              {cenarios.length === 0 ? (
+                <option value="">Nenhum cenário cadastrado</option>
+              ) : (
+                cenarios.map((cenario) => (
+                  <option key={cenario.id} value={cenario.id}>
+                    Cenário {cenario.numero}
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
@@ -418,3 +439,4 @@ export default function PlanejamentoPage() {
     </div>
   )
 }
+
