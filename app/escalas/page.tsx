@@ -220,6 +220,24 @@ function formatHorario(value?: string | null) {
   return value.slice(0, 5)
 }
  
+function formatHorarioCompacto(item: RelatorioItem) {
+  const entrada = formatHorario(item.entrada)
+  const saida = formatHorario(item.saida)
+  const inicioIntervalo = formatHorario(item.inicioIntervalo)
+  const fimIntervalo = formatHorario(item.fimIntervalo)
+ 
+  const periodoTrabalho = `${entrada} às ${saida}`
+  const periodoIntervalo =
+    inicioIntervalo !== "-" || fimIntervalo !== "-"
+      ? `Int. ${inicioIntervalo} às ${fimIntervalo}`
+      : "Sem intervalo"
+ 
+  return {
+    periodoTrabalho,
+    periodoIntervalo,
+  }
+}
+ 
 function normalizarHorario(valor: string | null, obrigatorio = true) {
   if (!valor) {
     return obrigatorio ? null : null
@@ -520,81 +538,81 @@ export default function EscalasPage() {
   function quantidadePessoasNaEscala(escalaId: string) {
     const fixos = escalaFixos.filter((item) => item.escala_id === escalaId).length
     const freelancers = escalaFreelancers.filter((item) => item.escala_id === escalaId).length
-
+ 
     return fixos + freelancers
   }
-
+ 
   function abrirModalCopiarEscala(escalaDestinoId: string) {
     const primeiraOrigemDisponivel = escalas.find((item) => item.id !== escalaDestinoId)
-
+ 
     setEscalaSelecionadaId(escalaDestinoId)
     setEscalaDestinoCopiaId(escalaDestinoId)
     setEscalaOrigemCopiaId(primeiraOrigemDisponivel?.id || "")
     setMostrarCopiarEscala(true)
   }
-
+ 
   function fecharModalCopiarEscala() {
     if (copiandoEscala) return
-
+ 
     setMostrarCopiarEscala(false)
     setEscalaDestinoCopiaId("")
     setEscalaOrigemCopiaId("")
   }
-
+ 
   async function copiarEscalaPronta() {
     if (!escalaDestinoCopiaId || !escalaOrigemCopiaId) {
       alert("Selecione a escala de origem e a escala de destino.")
       return
     }
-
+ 
     if (escalaDestinoCopiaId === escalaOrigemCopiaId) {
       alert("A escala de origem precisa ser diferente da escala de destino.")
       return
     }
-
+ 
     const escalaOrigem = escalas.find((item) => item.id === escalaOrigemCopiaId)
     const escalaDestino = escalas.find((item) => item.id === escalaDestinoCopiaId)
-
+ 
     if (!escalaOrigem || !escalaDestino) {
       alert("Não foi possível localizar uma das escalas selecionadas.")
       return
     }
-
+ 
     const fixosOrigem = escalaFixos.filter((item) => item.escala_id === escalaOrigemCopiaId)
     const freelancersOrigem = escalaFreelancers.filter((item) => item.escala_id === escalaOrigemCopiaId)
     const fixosDestino = escalaFixos.filter((item) => item.escala_id === escalaDestinoCopiaId)
     const freelancersDestino = escalaFreelancers.filter((item) => item.escala_id === escalaDestinoCopiaId)
     const destinoJaTemPessoas = fixosDestino.length > 0 || freelancersDestino.length > 0
-
+ 
     const confirmar = window.confirm(
       destinoJaTemPessoas
         ? `A escala de ${formatDateToBR(escalaDestino.data)} já possui ${fixosDestino.length + freelancersDestino.length} pessoa(s) selecionada(s). Deseja substituir por uma cópia da escala de ${formatDateToBR(escalaOrigem.data)}?`
         : `Deseja copiar a escala de ${formatDateToBR(escalaOrigem.data)} para ${formatDateToBR(escalaDestino.data)}?`
     )
-
+ 
     if (!confirmar) return
-
+ 
     try {
       setCopiandoEscala(true)
       setErro("")
       setSucesso("")
-
+ 
       const { error: deleteFixosError } = await supabase
         .from("escala_fixos")
         .delete()
         .eq("escala_id", escalaDestinoCopiaId)
         .eq("empresa_id", EMPRESA_ID)
-
+ 
       if (deleteFixosError) throw deleteFixosError
-
+ 
       const { error: deleteFreelancersError } = await supabase
         .from("escala_freelancers")
         .delete()
         .eq("escala_id", escalaDestinoCopiaId)
         .eq("empresa_id", EMPRESA_ID)
-
+ 
       if (deleteFreelancersError) throw deleteFreelancersError
-
+ 
       const novosFixos = fixosOrigem.map((item) => ({
         escala_id: escalaDestinoCopiaId,
         empresa_id: EMPRESA_ID,
@@ -606,7 +624,7 @@ export default function EscalasPage() {
         horario_saida: item.horario_saida || null,
         praca_id: item.praca_id || null,
       }))
-
+ 
       const novosFreelancers = freelancersOrigem.map((item) => ({
         escala_id: escalaDestinoCopiaId,
         empresa_id: EMPRESA_ID,
@@ -618,27 +636,27 @@ export default function EscalasPage() {
         horario_saida: item.horario_saida || null,
         praca_id: item.praca_id || null,
       }))
-
+ 
       if (novosFixos.length > 0) {
         const { error: insertFixosError } = await supabase
           .from("escala_fixos")
           .insert(novosFixos)
-
+ 
         if (insertFixosError) throw insertFixosError
       }
-
+ 
       if (novosFreelancers.length > 0) {
         const { error: insertFreelancersError } = await supabase
           .from("escala_freelancers")
           .insert(novosFreelancers)
-
+ 
         if (insertFreelancersError) throw insertFreelancersError
       }
-
+ 
       setSucesso(
         `Escala copiada com sucesso. Fixos copiados: ${novosFixos.length}. Freelancers copiados: ${novosFreelancers.length}.`
       )
-
+ 
       setMostrarCopiarEscala(false)
       setEscalaSelecionadaId(escalaDestinoCopiaId)
       setEscalaDestinoCopiaId("")
@@ -652,7 +670,7 @@ export default function EscalasPage() {
       setCopiandoEscala(false)
     }
   }
-
+ 
   async function alterarCenarioDaEscala(
     escalaId: string,
     cenarioAtualId: string,
@@ -1007,7 +1025,7 @@ export default function EscalasPage() {
     const elemento = document.getElementById("relatorio-escala-impressao")
     if (!elemento || !escalaSelecionada) return
  
-    const janela = window.open("", "_blank", "width=1000,height=700")
+    const janela = window.open("", "_blank", "width=1400,height=850")
     if (!janela) return
  
     janela.document.write(`
@@ -1015,79 +1033,174 @@ export default function EscalasPage() {
         <head>
           <title>Relatório da Escala</title>
           <style>
+            @page {
+              size: A4 landscape;
+              margin: 8mm;
+            }
+ 
+            * {
+              box-sizing: border-box;
+            }
+ 
             body {
               font-family: Arial, sans-serif;
-              padding: 24px;
+              padding: 0;
+              margin: 0;
               color: #0f172a;
+              background: #ffffff;
             }
  
-            h1 {
-              color: #1E5AA8;
-              margin-bottom: 8px;
-              font-size: 32px;
-            }
- 
-            .data-destaque {
-              margin-bottom: 4px;
-              color: #0f172a;
-              font-size: 28px;
-              font-weight: 700;
-            }
- 
-            .subinfo {
-              margin-top: 0;
-              margin-bottom: 20px;
-              color: #475569;
-              font-size: 14px;
+            .relatorio-paisagem {
+              width: 100%;
+              max-width: 1120px;
+              margin: 0 auto;
+              padding: 8px;
+              background: #ffffff;
             }
  
             .relatorio-cabecalho {
-              margin-bottom: 32px;
-              padding-bottom: 24px;
+              display: flex;
+              align-items: flex-end;
+              justify-content: space-between;
+              gap: 18px;
+              margin-bottom: 10px;
+              padding-bottom: 8px;
               border-bottom: 1px solid #e2e8f0;
             }
-
-            .relatorio-data {
-              margin-top: 24px;
-              margin-bottom: 0;
-              color: #0f172a;
-              font-size: 42px;
-              line-height: 1.1;
+ 
+            .relatorio-titulo {
+              margin: 0;
+              color: #1E5AA8;
+              font-size: 20px;
+              line-height: 1.05;
               font-weight: 800;
             }
-
+ 
+            .relatorio-data {
+              margin: 4px 0 0;
+              color: #0f172a;
+              font-size: 24px;
+              line-height: 1;
+              font-weight: 800;
+            }
+ 
             .relatorio-dia {
-              margin-top: 8px;
-              margin-bottom: 0;
+              margin: 3px 0 0;
               color: #475569;
-              font-size: 28px;
+              font-size: 15px;
+              line-height: 1.1;
               font-weight: 700;
             }
-
+ 
             .relatorio-cenario {
-              margin-top: 12px;
-              margin-bottom: 0;
+              margin: 0;
               color: #64748b;
-              font-size: 16px;
-              font-weight: 600;
+              font-size: 13px;
+              font-weight: 800;
+              text-align: right;
+              white-space: nowrap;
             }
-
+ 
+            .relatorio-resumo {
+              margin-top: 5px;
+              color: #475569;
+              font-size: 11px;
+              font-weight: 700;
+              text-align: right;
+              white-space: nowrap;
+            }
+ 
+            .relatorio-duas-colunas {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
+              align-items: start;
+              width: 100%;
+            }
+ 
+            .relatorio-coluna {
+              min-width: 0;
+            }
+ 
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 16px;
+              table-layout: fixed;
             }
  
             th, td {
-              border: 1px solid #cbd5e1;
-              padding: 10px;
+              border-bottom: 1px solid #e2e8f0;
+              padding: 4px 5px;
               text-align: left;
-              font-size: 14px;
+              font-size: 8.8px;
+              line-height: 1.1;
+              vertical-align: middle;
+              color: #0f172a;
+              overflow-wrap: anywhere;
             }
  
             th {
-              background: #eff6ff;
-              color: #1e3a8a;
+              background: #f8fafc;
+              color: #334155;
+              font-weight: 800;
+            }
+ 
+            .col-nome {
+              width: 31%;
+            }
+ 
+            .col-tipo {
+              width: 13%;
+            }
+ 
+            .col-funcao {
+              width: 22%;
+            }
+ 
+            .col-praca {
+              width: 13%;
+            }
+ 
+            .col-horario {
+              width: 21%;
+              text-align: left;
+            }
+ 
+            .horario-principal {
+              font-weight: 700;
+              white-space: nowrap;
+            }
+ 
+            .horario-intervalo {
+              margin-top: 1px;
+              color: #64748b;
+              white-space: nowrap;
+            }
+ 
+            .tipo-fixo {
+              color: #1d4ed8;
+              font-weight: 700;
+            }
+ 
+            .tipo-freelancer {
+              color: #047857;
+              font-weight: 700;
+            }
+ 
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+ 
+              .relatorio-paisagem {
+                padding: 0;
+              }
+ 
+              th, td {
+                font-size: 8px;
+                padding: 3.5px 4px;
+              }
             }
           </style>
         </head>
@@ -1118,6 +1231,8 @@ export default function EscalasPage() {
         cacheBust: true,
         backgroundColor: "#ffffff",
         pixelRatio: 2,
+        width: elemento.scrollWidth,
+        height: elemento.scrollHeight,
       })
  
       const link = document.createElement("a")
@@ -1328,6 +1443,11 @@ export default function EscalasPage() {
     })
   }, [escalaSelecionada, fixosDaEscala, freelancersDaEscala, cargosDoCenario])
  
+  const relatorioColunas = useMemo(() => {
+    const metade = Math.ceil(relatorioDaEscala.length / 2)
+    return [relatorioDaEscala.slice(0, metade), relatorioDaEscala.slice(metade)]
+  }, [relatorioDaEscala])
+ 
   const pessoaDoModal = useMemo(() => {
     if (!modalHorario) return null
  
@@ -1445,7 +1565,7 @@ export default function EscalasPage() {
                             >
                               Gerar relatório
                             </button>
-
+ 
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1868,7 +1988,7 @@ export default function EscalasPage() {
                   Escolha uma escala existente para copiar funcionários, horários, intervalos e praças para a escala selecionada.
                 </p>
               </div>
-
+ 
               <button
                 type="button"
                 onClick={fecharModalCopiarEscala}
@@ -1878,7 +1998,7 @@ export default function EscalasPage() {
                 Fechar
               </button>
             </div>
-
+ 
             <div className="space-y-5">
               <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-semibold text-blue-800">Escala de destino</p>
@@ -1889,12 +2009,12 @@ export default function EscalasPage() {
                   {formatWeekdayOnly(escalas.find((item) => item.id === escalaDestinoCopiaId)?.data || "")}
                 </p>
               </div>
-
+ 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
                   Copiar dados da escala
                 </label>
-
+ 
                 {escalas.filter((item) => item.id !== escalaDestinoCopiaId).length === 0 ? (
                   <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-medium text-yellow-800">
                     É necessário existir ao menos outra escala cadastrada para usar a cópia.
@@ -1915,7 +2035,7 @@ export default function EscalasPage() {
                   </select>
                 )}
               </div>
-
+ 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 <p className="font-semibold text-slate-900">O que será copiado</p>
                 <p className="mt-1">✓ Funcionários fixos</p>
@@ -1927,7 +2047,7 @@ export default function EscalasPage() {
                   Se a escala de destino já tiver pessoas selecionadas, elas serão substituídas.
                 </p>
               </div>
-
+ 
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
@@ -1937,7 +2057,7 @@ export default function EscalasPage() {
                 >
                   Cancelar
                 </button>
-
+ 
                 <button
                   type="button"
                   onClick={copiarEscalaPronta}
@@ -1951,10 +2071,10 @@ export default function EscalasPage() {
           </div>
         </div>
       ) : null}
-
+ 
       {mostrarRelatorio && escalaSelecionada ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl bg-white shadow-xl">
+          <div className="flex max-h-[90vh] w-full max-w-7xl flex-col rounded-3xl bg-white shadow-xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
               <div>
                 <h2 className="text-2xl font-bold text-[#1E5AA8]">Relatório da escala</h2>
@@ -1999,59 +2119,71 @@ export default function EscalasPage() {
               </div>
             </div>
  
-            <div className="flex-1 overflow-y-auto p-6">
-              <div id="relatorio-escala-impressao" className="bg-white p-6">
-                <div className="relatorio-cabecalho mb-8 border-b border-slate-200 pb-6">
-                  <h1 className="text-4xl font-extrabold text-[#1E5AA8]">
-                    Relatório da escala
-                  </h1>
-
-                  <p className="relatorio-data mt-6 text-5xl font-extrabold leading-tight text-slate-900">
-                    {formatDateToBR(escalaSelecionada.data)}
-                  </p>
-
-                  <p className="relatorio-dia mt-2 text-3xl font-bold text-slate-600">
-                    {formatWeekdayOnly(escalaSelecionada.data)}
-                  </p>
-
-                  <p className="relatorio-cenario mt-3 text-lg font-semibold text-slate-500">
-                    Cenário {escalaSelecionada.cenarios?.numero ?? "-"}
-                  </p>
+            <div className="flex-1 overflow-y-auto p-4">
+              <div id="relatorio-escala-impressao" className="relatorio-paisagem w-[1180px] bg-white p-5">
+                <div className="relatorio-cabecalho mb-5 flex items-end justify-between gap-6 border-b border-slate-200 pb-4">
+                  <div>
+                    <h1 className="relatorio-titulo text-3xl font-extrabold leading-tight text-[#1E5AA8]">
+                      Relatório da escala
+                    </h1>
+ 
+                    <p className="relatorio-data mt-2 text-4xl font-extrabold leading-tight text-slate-900">
+                      {formatDateToBR(escalaSelecionada.data)}
+                    </p>
+ 
+                    <p className="relatorio-dia mt-1 text-2xl font-bold text-slate-600">
+                      {formatWeekdayOnly(escalaSelecionada.data)}
+                    </p>
+                  </div>
+ 
+                  <div className="text-right">
+                    <p className="relatorio-cenario text-lg font-bold text-slate-500">
+                      Cenário {escalaSelecionada.cenarios?.numero ?? "-"}
+                    </p>
+                    <p className="relatorio-resumo mt-2 text-sm font-semibold text-slate-500">
+                      {relatorioDaEscala.length} pessoa(s) selecionada(s)
+                    </p>
+                  </div>
                 </div>
-
+ 
                 {relatorioDaEscala.length === 0 ? (
                   <p className="text-slate-600">Nenhum funcionário encontrado para esta escala.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-separate border-spacing-0 overflow-hidden rounded-2xl">
-                      <thead>
-                        <tr className="bg-slate-50">
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Nome</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Tipo</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Função designada</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Praça</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Entrada</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Início intervalo</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Fim intervalo</th>
-                          <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">Saída</th>
-                        </tr>
-                      </thead>
+                  <div className="relatorio-duas-colunas grid grid-cols-2 gap-4">
+                    {relatorioColunas.map((coluna, colunaIndex) => (
+                      <div key={`relatorio-coluna-${colunaIndex}`} className="relatorio-coluna min-w-0">
+                        <table className="tabela-compacta w-full table-fixed border-collapse overflow-hidden rounded-2xl">
+                          <thead>
+                            <tr className="bg-slate-50">
+                              <th className="col-nome border-b border-slate-200 px-2 py-2 text-left text-[10px] font-bold text-slate-700">Nome</th>
+                              <th className="col-tipo border-b border-slate-200 px-2 py-2 text-left text-[10px] font-bold text-slate-700">Tipo</th>
+                              <th className="col-funcao border-b border-slate-200 px-2 py-2 text-left text-[10px] font-bold text-slate-700">Função</th>
+                              <th className="col-praca border-b border-slate-200 px-2 py-2 text-left text-[10px] font-bold text-slate-700">Praça</th>
+                              <th className="col-horario border-b border-slate-200 px-2 py-2 text-left text-[10px] font-bold text-slate-700">Horário</th>
+                            </tr>
+                          </thead>
  
-                      <tbody className="bg-white">
-                        {relatorioDaEscala.map((item, index) => (
-                          <tr key={`${item.tipo}-${item.nome}-${item.cargo}-${index}`} className="hover:bg-slate-50">
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-800">{item.nome}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{item.tipo}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">{item.cargo}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{item.praca || "-"}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.entrada)}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.inicioIntervalo)}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.fimIntervalo)}</td>
-                            <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">{formatHorario(item.saida)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                          <tbody className="bg-white">
+                            {coluna.map((item, index) => {
+                              const horario = formatHorarioCompacto(item)
+ 
+                              return (
+                                <tr key={`${colunaIndex}-${item.tipo}-${item.nome}-${item.cargo}-${index}`} className="hover:bg-slate-50">
+                                  <td className="col-nome border-b border-slate-100 px-2 py-1.5 text-[10px] font-medium leading-tight text-slate-800">{item.nome}</td>
+                                  <td className={`col-tipo border-b border-slate-100 px-2 py-1.5 text-[10px] leading-tight ${item.tipo === "Fixo" ? "tipo-fixo font-bold text-blue-700" : "tipo-freelancer font-bold text-emerald-700"}`}>{item.tipo}</td>
+                                  <td className="col-funcao border-b border-slate-100 px-2 py-1.5 text-[10px] font-semibold leading-tight text-slate-900">{item.cargo}</td>
+                                  <td className="col-praca border-b border-slate-100 px-2 py-1.5 text-[10px] leading-tight text-slate-700">{item.praca || "-"}</td>
+                                  <td className="col-horario border-b border-slate-100 px-2 py-1.5 text-[10px] leading-tight text-slate-700">
+                                    <div className="horario-principal font-bold text-slate-800">{horario.periodoTrabalho}</div>
+                                    <div className="horario-intervalo text-[9px] text-slate-500">{horario.periodoIntervalo}</div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2082,5 +2214,4 @@ function ResumoCard({
   )
 }
  
-
-
+ 
